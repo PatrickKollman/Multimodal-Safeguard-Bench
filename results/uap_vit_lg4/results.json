@@ -1,0 +1,39 @@
+[
+  {
+    "guard": "llama_guard_4",
+    "attack": "uap_vit_feature_space",
+    "vit_path": "vision_model",
+    "eps_int": 16,
+    "eps_image": 0.06274509803921569,
+    "eps_pv": 0.12549019607843137,
+    "pv_std": 0.5,
+    "natural_bypass": {
+      "train": 0.12,
+      "test": 0.06
+    },
+    "centroid_cosine_sim": 0.6513180732727051,
+    "train": {
+      "n_items": 50,
+      "n_fooled": 11,
+      "fooling_rate": 0.22,
+      "mean_unsafe_logit_clean": 60.285,
+      "mean_unsafe_logit_adv": 57.285
+    },
+    "test": {
+      "n_items": 50,
+      "n_fooled": 5,
+      "fooling_rate": 0.1,
+      "mean_unsafe_logit_clean": 61.325,
+      "mean_unsafe_logit_adv": 57.72
+    },
+    "test_embed_dist_adv": 0.008512653093785048,
+    "fooling_curve": [
+      0.16,
+      0.18,
+      0.16,
+      0.22,
+      0.12,
+      0.12
+    ]
+  }
+]

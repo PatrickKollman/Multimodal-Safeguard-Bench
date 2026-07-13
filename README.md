@@ -162,14 +162,17 @@ the classify() bug fix — the attack directly accessed model tensors, bypassing
 path. The UAP demonstrates that even SG2's 95.5% image detection is not robust to white-box
 gradient attacks.
 
-**Note:** SG2's dangerous_content policy has an 88% natural blind spot on rendered text images
-before any perturbation (most rendered text images score below the 0.5 threshold on the
-visual-harm policy). The UAP closes the remaining 12%, reaching near-total fooling of policy-0.
+UAP attacks were evaluated against all three guards, with an additional feature-space attack on LG4 to disentangle gradient quality from classification behavior:
 
-**LG3V and LG4 UAP (in progress):** `scripts/attack_uap_gen.py` applies the same framework to
-generation-based guards using a first-token logit loss. Results pending.
+| Guard | Natural bypass | Standard UAP ε=16 | Standard UAP ε=32 | Feature-space UAP ε=16 | Transfer in |
+|---|---|---|---|---|---|
+| SG2 (dangerous_content) | ~84% | 92% | **100%** | — | — |
+| LG3V | 0% | **100%** | — | — | — |
+| LG4 | 6% | 16% | 22% | 10% | 2% (from LG3V) |
 
-→ [`results/uap_sg2_test/results.json`](results/uap_sg2_test/results.json)
+LG3V achieves the strongest result — a guard with zero natural bypass is 100% fooled at ε=16/255. LG4 resists all conditions tested. LG4's resistance has two independent sources confirmed by the feature-space experiment: (1) sparse MoE expert routing creates near-zero, incoherent gradients through pixel_values in the backward path; (2) even bypassing the MoE entirely (defining loss in ViT embedding space, 10% test fooling — *lower* than standard UAP), visual perturbations are insufficient because LG4's classification is text-context dominated. The CARRIER_PROMPT text tokens create a strong "potentially harmful" prior that persists even when image features are pushed toward the blank-image distribution. Both mechanisms arise from LG4's early-fusion design of treating image tokens as language tokens in a sparse MoE.
+
+→ [`results/uap_sg2/results.json`](results/uap_sg2/results.json) · [`results/uap_lg3v/results.json`](results/uap_lg3v/results.json) · [`results/uap_lg4/results.json`](results/uap_lg4/results.json) · [`results/uap_vit_lg4/results.json`](results/uap_vit_lg4/results.json) · [`results/uap_transfer_lg3v_lg4/results.json`](results/uap_transfer_lg3v_lg4/results.json)
 
 ---
 
@@ -269,6 +272,9 @@ python scripts/attack_uap_sg2.py --config configs/mvp.yaml --eps 16 --out result
 # LG4 / LG3V — generation-based guards (first-token logit loss)
 python scripts/attack_uap_gen.py --guard lg4  --config configs/mvp.yaml --eps 16
 python scripts/attack_uap_gen.py --guard lg3v --config configs/mvp.yaml --eps 16
+
+# LG4 — feature-space attack via ViT encoder (bypasses MoE gradient sparsity)
+python scripts/attack_uap_vit.py --config configs/mvp.yaml --eps 16
 ```
 
 ### RunPod Setup
@@ -313,10 +319,22 @@ cd /workspace/Multimodal-Safeguard-Bench
 │   │   └── pareto_front.json
 │   ├── rendering_sweep_probe_validated/
 │   │   └── validated.json
-│   ├── uap_sg2_test/         # SG2 UAP attack results
+│   ├── uap_sg2/              # SG2 UAP results (ε=16: 92% test fooling, ε=32: 100%)
+│   │   ├── delta_eps16.pt
+│   │   ├── delta_eps32.pt
+│   │   └── results.json
+│   ├── uap_lg3v/             # LG3V UAP results (ε=16: 100% test fooling)
 │   │   ├── delta_eps16.pt
 │   │   └── results.json
-│   └── uap_{lg4,lg3v}/       # LG4/LG3V UAP results (pending)
+│   ├── uap_lg4/              # LG4 UAP results (ε=16: 16%, ε=32: 22% — attack stalled)
+│   │   ├── delta_eps16.pt
+│   │   ├── delta_eps32.pt
+│   │   └── results.json
+│   ├── uap_vit_lg4/          # Feature-space UAP via ViT encoder (10% test fooling — confirms text-context dominance)
+   │   ├── delta_eps16.pt
+   │   ├── centroids.pt
+   │   └── results.json
+   └── uap_transfer_lg3v_lg4/ # LG3V→LG4 transfer eval (2% test fooling, null result)
 │   # Per-item JSONL outputs excluded by .gitignore (may contain model responses)
 ├── scripts/
 │   ├── setup_runpod.sh           # One-command RunPod bootstrap
@@ -327,6 +345,7 @@ cd /workspace/Multimodal-Safeguard-Bench
 │   ├── compute_adaptive.py       # Per-variant det/ASR from an --adaptive run (no GPU)
 │   ├── attack_uap_sg2.py         # UAP attack against ShieldGemma-2 (GPU, white-box)
 │   ├── attack_uap_gen.py         # UAP attack against LG4 / LG3V (GPU, white-box)
+   ├── attack_uap_vit.py         # Feature-space UAP against LG4 via ViT encoder (GPU, white-box)
 │   ├── sweep_rendering.py        # Bayesian search over rendering params (GPU)
 │   └── validate_sweep_configs.py # Full-pipeline validation of top sweep configs (GPU)
 ├── src/msbench/              # Benchmark harness (Python package)
