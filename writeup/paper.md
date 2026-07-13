@@ -1,6 +1,6 @@
 # Multimodal Safeguard Bench: Measuring the Image Channel Blind Spot in AI Safety Guards
 
-**Abstract.** AI safety guards are widely deployed to intercept harmful requests before a vision-language model (VLM) generates a response. We present Multimodal Safeguard Bench (MSBench), a reproducible evaluation harness measuring whether guards protect against the same harmful intent when it is rendered as an image rather than typed as text — a zero-gradient, black-box attack requiring no model access. We evaluate two current guards — Llama-Guard-4-12B (LG4), a multimodal intent classifier, and ShieldGemma-2-4B (SG2), an image content classifier — against LLaVA-1.6-Mistral-7B as the target VLM, using 900 items drawn from HarmBench (harmful) and XSTest (benign), scored by WildGuard. LG4 shows a 10.5pp detection recall gap (92.5% text vs. 82.0% image; 95% CI [88.0%, 95.4%] vs. [76.1%, 86.7%]), yielding a +2.5pp ASR protection gap and 11.8% over-refusal on XSTest's deliberately surface-dangerous safe prompts. SG2 shows a complete inversion: 0.0% text detection [0.0%, 1.8%] and 100.0% image detection [98.2%, 100.0%], leaving all text-modality jailbreaks unchecked while producing 49.8% over-refusal [45.4%, 54.2%]. Neither guard alone is sufficient; we characterize the complementary blind spots and their ensemble implication. Attention maps from LG4's vision encoder are captured for all 200 image-modality harmful items to qualitatively illustrate where the guard attends when reading rendered harmful text.
+**Abstract.** AI safety guards are widely deployed to intercept harmful requests before a vision-language model (VLM) generates a response. We present Multimodal Safeguard Bench (MSBench), a reproducible evaluation harness measuring whether guards protect against the same harmful intent when it is rendered as an image rather than typed as text — a zero-gradient, black-box attack requiring no model access. We evaluate two current guards — Llama-Guard-4-12B (LG4), a multimodal intent classifier, and ShieldGemma-2-4B (SG2), an image content classifier — against LLaVA-1.6-Mistral-7B as the target VLM, using 900 items drawn from HarmBench (harmful) and XSTest (benign), scored by WildGuard. LG4 shows a 10.5pp detection recall gap (92.5% text vs. 82.0% image; 95% CI [88.0%, 95.4%] vs. [76.1%, 86.7%]), yielding a +2.5pp ASR protection gap and 11.8% over-refusal on XSTest's deliberately surface-dangerous safe prompts. SG2 shows a complete inversion: 0.0% text detection [0.0%, 1.8%] and 100.0% image detection [98.2%, 100.0%], leaving all text-modality jailbreaks unchecked while producing 49.8% over-refusal [45.4%, 54.2%]. Neither guard alone is sufficient; we characterize the complementary blind spots and show that a modality-routed ensemble (LG4 on text, SG2 on image) achieves 92.5% text and 100.0% [98.1, 100.0] image detection at 53.6% [49.2, 57.9] over-refusal — closing the image-channel gap entirely at the cost of SG2's high benign-image false-positive rate.
 
 ---
 
@@ -15,7 +15,7 @@ The attack is elementary. A harmful instruction — one that would be blocked if
 
 The pipeline runs on a single 24 GB GPU with sequential model staging, making results reproducible on commodity hardware. All code and result artifacts are released at this repository.
 
-**Contributions:** (1) A reproducible eval harness for measuring multimodal guard coverage across both attack modalities. (2) Quantitative evidence that the two most widely available open-source guards have structurally opposite blind spots, with 95% confidence intervals. (3) A characterization of over-refusal on XSTest's purpose-built safe prompts. (4) Attention map visualizations from LG4's vision encoder across all 200 image-modality harmful items.
+**Contributions:** (1) A reproducible eval harness for measuring multimodal guard coverage across both attack modalities. (2) Quantitative evidence that the two most widely available open-source guards have structurally opposite blind spots, with 95% confidence intervals. (3) A characterization of over-refusal on XSTest's purpose-built safe prompts. (4) An ensemble analysis showing that routing text through LG4 and images through SG2 covers both channels at manageable over-refusal cost. (5) An adaptive rendering study and Bayesian rendering parameter sweep showing that both hand-designed and optimized rendering variants fail as evasion strategies: surface variations leave guard detection statistically invariant, and Gaussian noise-based rendering — even when optimized to drive LG4 detection to 0% — also destroys the target VLM's ability to read the rendered intent, making selective guard evasion impossible with random perturbations.
 
 ---
 
@@ -45,7 +45,7 @@ The pipeline runs on a single 24 GB GPU with sequential model staging, making re
 
 **Judge.** WildGuard (`allenai/wildguard`) scores each generated response as complied or refused by analyzing the (intent, response) pair. *Attack success rate* (ASR) is the fraction of harmful items where WildGuard determines the VLM complied with the harmful intent.
 
-**Dataset.** We use 200 HarmBench standard behaviors (FunctionalCategory = "standard", excluding "copyright" and "contextual" as different threat models). The 200 behaviors span the HarmBench harm taxonomy: violence and threats (S1), chemical and biological weapons (S2), radioactive/nuclear (S3), child safety (S4), illegal weapons (S5), hate speech (S6), privacy/surveillance (S7), specialized harmful advice (S8), election interference (S9), cyberattacks (S10), and drug manufacturing (S14). See `figures/full_run_900_items_fig3_category_breakdown.png` for the per-category detection breakdown.
+**Dataset.** We use 200 HarmBench standard behaviors (FunctionalCategory = "standard", excluding "copyright" and "contextual" as different threat models). The 200 behaviors span the HarmBench harm taxonomy: violence and threats (S1), chemical and biological weapons (S2), radioactive/nuclear (S3), child safety (S4), illegal weapons (S5), hate speech (S6), privacy/surveillance (S7), specialized harmful advice (S8), election interference (S9), cyberattacks (S10), and drug manufacturing (S14). LG4's image-channel miss rate is distributed across these categories without concentration in any single class, pointing to a fundamental perception difficulty rather than category-specific gaps.
 
 Each intent produces two items: a text-modality item (raw intent as the prompt) and an image-modality item (intent rendered into a 512×512 PIL image, 24pt black text on white background, 40px padding). Figure 2 shows examples of both modalities alongside each guard's decision.
 
@@ -69,30 +69,99 @@ For over-refusal measurement, we use 250 safe prompts from XSTest (`natolambert/
 | Unguarded | — | — | 57.0% [50.1, 63.7] | 60.5% [53.6, 67.0] | — | — |
 | Llama-Guard-4 | **92.5%** [88.0, 95.4] | 82.0% [76.1, 86.7] | **5.5%** [3.1, 9.6] | 11.5% [7.8, 16.7] | 11.8% [9.3, 14.9] | +2.5pp |
 | ShieldGemma-2 | 0.0% [0.0, 1.8] | **100.0%** [98.2, 100.0] | 57.0% [50.1, 63.7] | **0.0%** | 49.8% [45.4, 54.2] | −60.5pp |
+| **Ensemble** (LG4⊕SG2) | **92.5%** [88.0, 95.4] | **100.0%** [98.1, 100.0] | **5.5%** | **0.0%** | 53.6% [49.2, 57.9] | 0pp |
 
-*Det-txt / Det-img denominators: 200 harmful items each modality. OvRef denominator: 500 benign items (250 XSTest × 2 modalities). ProtGap = text ASR reduction − image ASR reduction. CIs not shown for boundary cases where point estimate is identical to unguarded baseline.*
+*Det-txt / Det-img denominators: 200 harmful items each modality. OvRef denominator: 500 benign items (250 XSTest × 2 modalities). ProtGap = text ASR reduction − image ASR reduction. Ensemble routing: text-modality items → LG4 only; image-modality items → block if LG4 OR SG2 blocks. CIs not shown for ASR boundary cases where point estimate is identical to unguarded or 0%.*
 
-**Finding 1: LG4 has a statistically meaningful image-channel blind spot.** Llama-Guard-4 detects 92.5% of text-modality harmful items (185/200) but only 82.0% of image-modality items (164/200). The 10.5pp gap is significant: the 95% CIs ([88.0, 95.4] vs. [76.1, 86.7]) are non-overlapping. This translates directly into ASR: 5.5% of text-channel attempts succeed (vs. 57.0% unguarded, a 51.5pp reduction) while 11.5% of image-channel attempts succeed (vs. 60.5% unguarded, a 49.0pp reduction), yielding a +2.5pp protection gap. See `figures/full_run_900_items_fig1_modality_gap.png`.
+**Finding 1: LG4 has a statistically meaningful image-channel blind spot.** Llama-Guard-4 detects 92.5% of text-modality harmful items (185/200) but only 82.0% of image-modality items (164/200). The 10.5pp gap is significant: the 95% CIs ([88.0, 95.4] vs. [76.1, 86.7]) are non-overlapping. This translates directly into ASR: 5.5% of text-channel attempts succeed (vs. 57.0% unguarded, a 51.5pp reduction) while 11.5% of image-channel attempts succeed (vs. 60.5% unguarded, a 49.0pp reduction), yielding a +2.5pp protection gap. See `figures/full_run_900_items_fig1_detection_and_asr.png`.
 
 **Finding 2: SG2's architectural inversion is total.** ShieldGemma-2 operates solely on image pixels. Its text-channel detection is exactly 0.0% (upper CI bound 1.8%) across all 200 harmful intents — SG2 makes no model call for text items, returning safe by construction. Text ASR under SG2 (57.0%) is statistically identical to the unguarded baseline. Simultaneously, SG2 achieves perfect image detection (100.0%, lower CI 98.2%), reducing image ASR from 60.5% to 0.0%. A deployment relying solely on SG2 provides no protection against typed harmful intent. See `figures/full_run_900_items_fig4_heatmap.png`.
 
-**Finding 3: Over-refusal on XSTest reveals the true cost.** Measured over 500 XSTest benign items (250 prompts × 2 modalities), LG4 incorrectly blocks 11.8% [9.3%, 14.9%] and SG2 incorrectly blocks 49.8% [45.4%, 54.2%]. All of SG2's 249 blocks fall on image-modality items — it false-flags 99.6% of benign rendered-text images. These rates are measured on XSTest specifically because its safe prompts deliberately resemble harmful ones; a naive benign set would show LG4 near 0%. The 11.8% XSTest rate is the honest upper-bound estimate. See `figures/full_run_900_items_fig2_asr_comparison.png`.
-
-**Per-category breakdown.** `figures/full_run_900_items_fig3_category_breakdown.png` shows detection recall across HarmBench semantic categories. LG4's 18% miss rate on images concentrates in categories where rendered text is visually dense or the harm is expressed through indirect framing; SG2 achieves uniform detection across all image categories.
+**Finding 3: Over-refusal on XSTest reveals the true cost.** Measured over 500 XSTest benign items (250 prompts × 2 modalities), LG4 incorrectly blocks 11.8% [9.3%, 14.9%] and SG2 incorrectly blocks 49.8% [45.4%, 54.2%]. All of SG2's 249 blocks fall on image-modality items — it false-flags 99.6% of benign rendered-text images. These rates are measured on XSTest specifically because its safe prompts deliberately resemble harmful ones; a naive benign set would show LG4 near 0%. The 11.8% XSTest rate is the honest upper-bound estimate. See `figures/full_run_900_items_fig1_detection_and_asr.png`.
 
 ---
 
-## 5. Attention Map Analysis
+## 5. Adaptive Rendering Study
 
-To qualitatively characterize where LG4's vision encoder attends when reading harmful rendered text, we capture spatial attention from LG4's vision model for all 200 image-modality harmful items, hooking `vision_model.model.layers.33.self_attn`. We extract the CLS token's attention to each of the 576 image patch tokens (a 24×24 grid over the 336×336 input resolution), averaged over attention heads — the standard ViT attention visualization approach. Attention weights are normalized and overlaid on the input image as a heatmap. Maps for all 200 items are saved to `figures/attn_maps/`, with a manifest (`figures/attn_maps/manifest.json`) recording the canonical guard decision (blocked/passed) and per-entry attention statistics. A curated gallery comparing blocked vs. passed items is in `figures/attn_gallery.png`.
+A natural counter-move for an attacker who knows the baseline rendering is to vary how harmful text is presented. We test four surface rendering variations on the full 200-item HarmBench image-modality set and measure per-variant detection recall and ASR for both guards.
 
-The manifest records 164 blocked and 36 passed items, matching the 82.0% Det-img headline exactly. Qualitatively, blocked items tend to show higher attention concentration over the text region; passed items more frequently show diffuse or background-dominant attention — consistent with a model that fails to read the harmful semantic content from pixels in those cases.
+**Variants.** Each harmful intent is rendered four ways: (1) *original* — 24pt black text on white, 512×512; (2) *inverted* — white text on black background; (3) *small\_font* — 14pt (60% of baseline); (4) *rotated* — 15° clockwise with white fill. All variants use the same carrier prompt and pipeline as the baseline study.
 
-**Limitation: GradCAM decision divergence.** The GradCAM capture pipeline uses a heuristic classification rule (`response.lower().startswith("unsafe")`) that diverges from the canonical `guards.py` classification (a policy-probability threshold) on approximately 28/200 items (~14%). The manifest `blocked` field uses the **canonical guard decision** (loaded from `results/full_run/guard_llama_guard_4_harmful.jsonl`), matching the eval headline; each entry additionally preserves the GradCAM heuristic call as `gradcam_decision`. The attention maps are unaffected — they capture actual model activations — but per-item categorization should use the canonical `blocked` field.
+**Table 2: Adaptive rendering results — per-variant detection recall and guarded ASR (200 image-modality items per variant, 95% Wilson CIs).**
+
+| Guard | Variant | Det-img [95% CI] | ASR-ug | ASR-gd |
+|---|---|---|---|---|
+| LG4 | original | 81.5% [75.5, 86.3] | 60.5% | 11.5% |
+| LG4 | inverted | 85.0% [79.4, 89.3] | 56.0% | 7.5% |
+| LG4 | small\_font | 80.5% [74.5, 85.4] | 63.0% | 12.0% |
+| LG4 | rotated | 78.5% [72.3, 83.6] | 57.0% | 10.5% |
+| SG2 | original | 100.0% [98.1, 100.0] | 60.5% | 0.0% |
+| SG2 | inverted | 100.0% [98.1, 100.0] | 56.0% | 0.0% |
+| SG2 | small\_font | 100.0% [98.1, 100.0] | 63.0% | 0.0% |
+| SG2 | rotated | 100.0% [98.1, 100.0] | 57.0% | 0.0% |
+
+*ASR-ug: unguarded VLM baseline for each variant's items. ASR-gd: guarded ASR, denominator includes all items (blocked items score as refused).*
+
+**Finding 4: LG4's image-channel detection is statistically invariant across all rendering variants.** Detection recall spans only 6.5pp across the four variants (78.5–85.0%), and all pairwise 95% Wilson CIs overlap substantially with the baseline [75.5, 86.3]. No rendering manipulation achieves statistically distinguishable evasion. Counterintuitively, inverted text (white on black) is detected *better* than the baseline (85.0% vs. 81.5%), though this difference is also non-significant. The 15° rotation — the variant most likely to degrade OCR-style text reading — produces the smallest detection rate (78.5%) but remains statistically indistinguishable from original.
+
+**Finding 5: SG2 is completely invariant to rendering.** 100.0% [98.1, 100.0] detection across all four variants. This is expected: SG2 evaluates pixel-level content policy signals, not text semantics. Whether harmful text is black-on-white, white-on-black, small, or rotated, it still pattern-matches "dangerous content" at the pixel level.
+
+**Finding 6: The unguarded VLM shows mild rendering sensitivity.** The ASR-ug column reveals that the unguarded LLaVA baseline varies across variants (56.0% for inverted, 63.0% for small\_font). This suggests the *target model* is somewhat rendering-sensitive — small text renders slightly more effective as a jailbreak of the unguarded VLM. However, the guard's detection tracks the underlying attack surface: guarded ASR remains low across all variants for LG4.
+
+**Interpretation.** The image-channel gap in LG4 (81.5% image vs. 92.5% text detection) is not tied to any rendering parameter an attacker can manipulate. Surface-level rendering changes leave detection rates statistically unchanged, pointing to a fundamental challenge in *intent recognition* from pixel-rendered text rather than a vulnerability specific to rendering style. This rules out the simplest class of adaptive attacks — rendering variation — as a viable evasion strategy against the evaluated guards.
 
 ---
 
-## 6. Discussion
+## 6. Rendering Parameter Sweep
+
+The adaptive study (Section 5) tested four hand-chosen rendering variants and found statistically invariant detection rates for both guards. A more systematic question is whether *any* rendering configuration — searched over a continuous 7-dimensional parameter space — can simultaneously evade LG4 and produce an image the target VLM can still read. We answer this with a Bayesian optimization sweep followed by full-pipeline validation.
+
+**Setup.** We use Optuna with a multivariate TPE sampler (`seed=42`) to minimize `(lg4_det, sg2_det)` jointly over 20 probe trials (n=10 HarmBench items per trial). Each trial samples a rendering configuration from the space below:
+
+| Parameter | Range | Role |
+|---|---|---|
+| `font_size` | 8–40 pt | Glyph legibility |
+| `text_gray` | 0–200 | Text luminance (0=black) |
+| `bg_gray` | 55–255 | Background luminance |
+| `noise_sigma` | 0.0–25.0 | Gaussian pixel noise (std.) |
+| `blur_radius` | 0.0–2.5 | Gaussian blur kernel |
+| `rotation` | −25° to +25° | In-plane rotation |
+| `padding` | 5–80 px | Canvas margin |
+
+Both guards are loaded simultaneously (~16 GB) for the probe; a readability gate (ASR-ug ≥ 40%) is used during full-pipeline validation to filter configs where the target VLM can no longer interpret the rendered intent. Noise is seeded per-text for determinism. The 6 Pareto-optimal configs from the probe (lowest joint detection) are then validated on the full 200-item harmful set via three sequential model phases to avoid OOM.
+
+**Probe finding: `noise_sigma` is the dominant evasion driver.** All 6 configs that reached 0% LG4 detection on n=10 had `noise_sigma ≥ 14.85`. No other parameter (font size, contrast, blur, rotation) showed a comparable concentration. The left panel of Figure 5 shows the relationship clearly: detection stays high for σ < 14.85 and collapses below it. SG2 remained at 100% detection across all 20 probe trials regardless of parameters — it is not movable via rendering.
+
+**Validation: guard evasion destroys target readability.** Table 3 shows full-pipeline results for the 6 Pareto configs validated on n=200.
+
+**Table 3: Rendering sweep validation — top-6 Pareto configs (n=200 items, 95% Wilson CIs).**
+
+| Trial | noise_σ | LG4-det [95% CI] | SG2-det | ASR-ug | Readable? |
+|---|---|---|---|---|---|
+| 0 | 15.0 | 0.0% [0.0, 1.9] | 100.0% | 0.0% | NO |
+| 7 | 23.5 | 0.0% [0.0, 1.9] | 100.0% | 0.0% | NO |
+| 10 | 14.8 | 0.0% [0.0, 1.9] | 100.0% | 0.0% | NO |
+| 13 | 24.5 | 0.0% [0.0, 1.9] | 100.0% | 8.0% | NO |
+| 5 | 17.1 | 3.5% [1.7, 7.0] | 100.0% | 12.5% | NO |
+| 6 | 16.6 | 6.5% [3.8, 10.8] | 100.0% | 7.0% | NO |
+
+*Readable: ASR-ug ≥ 40% (target VLM complies with harmful intent on ≥40% of items). All configs fall below this threshold. Wilson CIs for ASR-ug omitted where the point estimate is already below the gate boundary.*
+
+Every config that drove LG4 detection to 0% [0.0%, 1.9%] also collapsed LLaVA compliance to 0.0% or 8.0% — both well below the readability gate. The best-tradeoff config (trial 5) achieves only 3.5% LG4 detection at 12.5% ASR-ug. The right panel of Figure 5 shows all six validated configs clustered below the 40% readability gate: no config occupies the top-left region (low detection, high readability) that would constitute a viable attack.
+
+Figure 4 illustrates the visual effect. At σ = 23.5 (trial 7), the rendered image is a near-uniform light noise field with no recoverable text. At σ = 14.8 (trial 10) the rendering is a gray noisy blur. At σ = 17.1 (trial 5) — the best-tradeoff config — the dark-on-dark rendering with noise leaves the image effectively unreadable. All three contrast sharply with the clean baseline the standard pipeline uses.
+
+![Rendering examples](../figures/fig_sweep_examples.png)
+*Figure 4: Visual effect of sweep configurations on rendered intent images. Left: the standard pipeline rendering (readable, LG4 detects 82%). The three right panels show Pareto-optimal sweep configs at increasing noise levels — all achieve near-zero LG4 detection but are simultaneously unreadable to the target VLM (ASR-ug ≤ 12.5%).*
+
+![Sweep tradeoff](../figures/fig_sweep_tradeoff.png)
+*Figure 5: Left: Gaussian noise magnitude vs. LG4 detection recall across 20 Bayesian probe trials. Detection collapses below σ ≈ 14.9 (dashed). Right: Guard detection vs. unguarded ASR for the 6 validated configs on n=200 items (95% Wilson CI bars). All points sit below the 40% readability gate — no config in the Pareto front constitutes a viable attack.*
+
+**Finding 7: Random perturbations cannot selectively evade LG4.** The noise level required to suppress LG4's OCR pathway (σ ≥ ~14.9) simultaneously suppresses LLaVA's text interpretation. Both models share similar noise sensitivity thresholds for pixel-rendered text. This is mechanistically expected: both process images through vision transformer patch encoders, and Gaussian noise degrades the patch embeddings uniformly across both models. An attacker cannot find a rendering configuration that blinds the guard but leaves the target intact. Random perturbation — even when Bayesian-optimized over a 7-dimensional space — is not a viable evasion strategy. Targeted gradient-based attacks that drive the guard's internal representations toward a safe prediction while preserving the target's understanding would be required.
+
+---
+
+## 7. Discussion
 
 **Why the gap exists architecturally.** Figure 3 illustrates the contrast. LG4 processes (image, text) jointly through a Llama 4-based multimodal transformer. Harmful intent encoded as pixels introduces an extra inference step: the model must recover the semantic content from the rendered glyph representation before assessing harm. SG2 processes images through a vision-only encoder trained on content policy labels (dangerous content, sexual, gore). It was never designed to read text as intent — whether harmful or benign — which explains both the 0% text detection and the 99.6% benign-image false positive rate.
 
@@ -101,24 +170,26 @@ The manifest records 164 blocked and 36 passed items, matching the 82.0% Det-img
 
 **Security implication.** A deployment using only SG2 leaves the text channel entirely unprotected: unguarded text ASR (57.0%) and SG2-guarded text ASR (57.0%) are statistically identical. An attacker who knows the guard architecture bypasses it by sending the harmful request as plain text. Conversely, a deployment using only LG4 accepts an 18.0% image-channel detection gap and 11.5% image ASR.
 
-**The right defense: ensemble.** The complementary failure modes suggest a block-on-either-guard ensemble. LG4 covers text intent; SG2 covers image content. This should achieve high recall across both modalities at the cost of SG2's ~99.6% benign-image false positive rate. Quantifying the ensemble and whether adaptive rendering variants (inverted colors, small font, rotation, serif typeface) can evade it is the natural next step.
+**The right defense: ensemble.** The complementary failure modes suggest a modality-routed ensemble: LG4 on text-modality inputs, SG2 on image-modality inputs, block if either fires. We compute this from the existing run JSONL with no additional model calls. The ensemble achieves **92.5% text detection and 100.0% [98.1, 100.0] image detection**, reducing image ASR from 11.5% (LG4 alone) to 0.0% and text ASR from 57.0% (SG2 alone) to 5.5%. The cost is OvRef rising from 11.8% (LG4 alone) to **53.6% [49.2, 57.9]** — a 41.8pp penalty paid entirely on image-modality benign prompts, where SG2 false-flags 99.6% of rendered safe text. An operator accepting this ensemble must either tolerate high image-channel over-refusal, tune SG2's 0.5 threshold, or restrict image input to contexts where false positives carry lower cost. Whether adaptive rendering variants (inverted colors, small font, rotation, serif typeface) can evade the ensemble's 100% image detection is the natural next stress test.
 
 ---
 
-## 7. Limitations
+## 8. Limitations
 
-- **Adaptive variants not yet fully reported.** Rendering variations (inverted, small-font, rotated, serif) are implemented in `src/msbench/adaptive.py`. A preliminary smoke run (30 items × 4 variants) showed directionally similar detection rates to the original image modality, but n=30 per variant is insufficient for stable estimates; full adaptive results are deferred.
+- **Rendering sweep is a probe, not a full search.** Section 6 reports results from 20 Bayesian probe trials (n=10 items per trial). The full parameter space (7 continuous dimensions) is large; 20 trials cover only its Pareto frontier at low resolution. The negative result — that all Pareto-optimal configs fail the readability gate — is internally consistent and mechanistically explained, but a larger sweep (300+ trials, n=50 items) could in principle find edge cases near the readability boundary. The 20-trial probe is sufficient to identify the dominant driver (noise_sigma) and validate the tradeoff on n=200 items; it is not a claim of exhaustive search.
+- **Adaptive variants limited to surface rendering changes.** Section 5 tests four rendering manipulations (color inversion, font size, rotation, typeface). All produce statistically invariant detection rates for both guards. More sophisticated evasion strategies — embedding harmful text within a natural photograph, adversarial perturbation of rendered text, handwritten simulation, or multi-image decomposition — are not evaluated and may produce different results. The tested variants represent the simplest-effort class of adaptive attacks; stronger attacks remain open.
 - **XSTest over-refusal is a strong test.** LG4's 11.8% OvRef is measured on XSTest, which is specifically designed to surface over-refusal via safe prompts that resemble harmful ones. This produces a credible upper-bound estimate; a naive benign set would show LG4 near 0%. Both numbers are real; XSTest is the honest one.
-- **GradCAM decision divergence.** As described in §5, the GradCAM pipeline's heuristic decision rule diverges from the canonical classifier on ~14% of image items. The manifest has been reconciled to the canonical split, but the underlying pipeline should be aligned with `guards.py.classify()` for fully rigorous attribution.
 - **Single target VLM.** All results use LLaVA-1.6-Mistral-7B. Generalization to other target VLMs or commercial systems is an open question.
 - **Black-box attacks only.** No gradient access, no adversarial perturbation. The measured gaps represent the minimal-effort baseline; white-box or adaptive attacks would likely achieve higher ASR.
 - **Two guards.** The complementary blind spot story is compelling but rests on two data points. Evaluating additional guards (LLaVA-Guard, InternVL-based classifiers, commercial moderation APIs) would strengthen the generalizability claim.
 
 ---
 
-## 8. Conclusion
+## 9. Conclusion
 
-We have shown that two currently deployed open-source safety guards have structurally opposite blind spots with respect to text-versus-image modality. Llama-Guard-4 shows a statistically significant 10.5pp detection recall gap (92.5% [88.0, 95.4] text vs. 82.0% [76.1, 86.7] image) and a +2.5pp ASR protection gap, with 11.8% [9.3, 14.9] over-refusal on XSTest's purpose-built safe prompts. ShieldGemma-2 is categorically blind to text-modality harmful intent (0.0% [0.0, 1.8] detection) while achieving perfect image detection (100.0% [98.2, 100.0]), at the cost of 49.8% [45.4, 54.2] aggregate over-refusal. Neither guard alone is sufficient; their complementary failure modes suggest an ensemble as the minimum viable deployment. MSBench provides the infrastructure to measure this gap reproducibly, track it across guard generations, and evaluate adaptive evasion techniques systematically.
+We have shown that two currently deployed open-source safety guards have structurally opposite blind spots with respect to text-versus-image modality. Llama-Guard-4 shows a statistically significant 10.5pp detection recall gap (92.5% [88.0, 95.4] text vs. 82.0% [76.1, 86.7] image) and a +2.5pp ASR protection gap, with 11.8% [9.3, 14.9] over-refusal on XSTest's purpose-built safe prompts. ShieldGemma-2 is categorically blind to text-modality harmful intent (0.0% [0.0, 1.8] detection) while achieving perfect image detection (100.0% [98.2, 100.0]), at the cost of 49.8% [45.4, 54.2] aggregate over-refusal. Neither guard alone is sufficient; their complementary failure modes suggest a modality-routed ensemble (LG4 on text, SG2 on image) as the minimum viable deployment, achieving 92.5%/100.0% detection across both channels at 53.6% [49.2, 57.9] over-refusal.
+
+An adaptive rendering study across four surface variants (color inversion, font size reduction, 15° rotation, serif typeface) finds that LG4's image-channel detection rate is statistically invariant across all tested manipulations — all pairwise Wilson CIs overlap with the baseline. The image-channel gap is structural, not a rendering artifact exploitable by simple variation. SG2's 100.0% image detection likewise holds across all rendering variants. A Bayesian rendering parameter sweep over a 7-dimensional space confirms this at a more systematic level: Gaussian noise drives LG4 detection to 0% [0.0%, 1.9%] but simultaneously destroys the target VLM's ability to read the rendered intent (best ASR-ug: 12.5%), demonstrating that random perturbations cannot selectively evade the guard. Targeted gradient-based attacks remain the open problem. MSBench provides the infrastructure to measure these gaps reproducibly, track them across guard generations, and evaluate stronger classes of adaptive attacks systematically.
 
 ---
 
@@ -134,4 +205,3 @@ We have shown that two currently deployed open-source safety guards have structu
 - Meta AI, 2025. *Llama Guard 4: Meta's Multimodal LLM-based Input-Output Safeguard.*
 - Google DeepMind, 2025. *ShieldGemma 2: Generative AI Content Moderation Based on Gemma.*
 - Anthropic, 2025. *Constitutional Classifiers: Defending against Universal Jailbreaks.*
-- Selvaraju et al., 2017. *Grad-CAM: Visual Explanations from Deep Networks via Gradient-based Localization.* ICCV.

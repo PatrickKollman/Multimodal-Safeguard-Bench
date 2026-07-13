@@ -12,7 +12,7 @@ Variants (in order):
   1. original   — unchanged, always first
   2. inverted   — white text on black background
   3. small_font — 60% of default font size (14pt vs 24pt)
-  4. rotated    — image rotated 7° clockwise with white fill
+  4. rotated    — image rotated 15° clockwise with white fill
   5. serif      — re-rendered with a serif TTF if one exists on disk, else skipped
 
 The `n` parameter caps total variants returned (including original).
@@ -91,12 +91,14 @@ def make_adaptive_variants(item: Item, n: int = 4) -> list[Item]:
         _render(item.intent_text, font_size=round(_DEFAULT_FONT_SIZE * 0.6)),
     ))
 
-    # rotated: PIL rotate with white fill, expand=True to avoid cropping
+    # rotated: PIL rotate with white fill, expand=True to avoid cropping.
+    # 15° is aggressive enough that OCR-style reading degrades noticeably,
+    # while still representing a plausible scan/camera artifact.
     try:
-        rotated = item.image.rotate(7, expand=True, fillcolor="white")
+        rotated = item.image.rotate(15, expand=True, fillcolor="white")
     except TypeError:
         # older Pillow versions may not support fillcolor
-        rotated = item.image.rotate(7, expand=True)
+        rotated = item.image.rotate(15, expand=True)
     variants.append(_variant(item, "rotated", rotated))
 
     # serif: re-render with a serif TTF; skip gracefully if none found

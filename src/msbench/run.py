@@ -117,7 +117,7 @@ def main(args: argparse.Namespace) -> None:
         # smoke also caps benign (incl. external sources like XSTest)
         cfg["data"]["benign_count"] = cfg["eval"].get("smoke_n", 30)
 
-    run_id = datetime.now().strftime("%Y%m%d_%H%M%S")
+    run_id = args.name if args.name else datetime.now().strftime("%Y%m%d_%H%M%S")
     run_dir = Path(cfg["eval"]["output_dir"]) / run_id
     run_dir.mkdir(parents=True, exist_ok=True)
     shutil.copy(args.config, run_dir / "config.yaml")
@@ -244,6 +244,9 @@ def cli() -> None:
                             "(e.g. --limit 4). Splits proportionally between "
                             "harmful/benign. Overrides smoke_n from config."
                         ))
+    parser.add_argument("--name", default=None, metavar="NAME",
+                        help="Human-readable run name (e.g. full_run, adaptive_lg4). "
+                             "Defaults to timestamp if omitted.")
     parser.add_argument("--adaptive", action="store_true",
                         help=(
                             "Expand image-modality harmful items into 4 rendering "
