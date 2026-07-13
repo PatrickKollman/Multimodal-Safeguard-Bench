@@ -167,7 +167,7 @@ def format_table(metrics: dict) -> str:
         f" {'—':>8} {'—':>8} {'—':>8} {'—':>7}"
     )
     for name, m in metrics.items():
-        if name == "unguarded":
+        if name == "unguarded" or not isinstance(m, dict) or "asr_text" not in m:
             continue
         lines.append(
             f"{name:<22} {_p(m['asr_text'])} {_p(m['asr_image'])}"
