@@ -1,6 +1,57 @@
 # Changelog
 
-## [Unreleased] — post-initial-study extensions
+## [Unreleased] — SG2 load fix + constructive reframe (CURRENT / canonical)
+
+### Root-cause fix: ShieldGemma-2 was loading with a random `lm_head` (all prior SG2 numbers invalid)
+
+**Files:** `src/msbench/guards.py` (`ShieldGemma2.load`, `.classify`), `scripts/attack_uap_sg2.py`,
+`results/full_run/**`, `results/uap_sg2*/**`, `writeup/paper.md`, `README.md`,
+`scripts/make_carrier_robustness_figure.py`, regenerated `figures/**`.
+
+**What was wrong.** `ShieldGemma2ForImageClassification.from_pretrained` (transformers 4.57)
+silently random-initializes the inner Gemma-3 `lm_head`: it is tied to the token embeddings and
+absent from the checkpoint, the outer wrapper's `_tied_weights_keys` is `None`, and the wrapper's
+`tie_weights()` delegates to a submodule that does not repair the head used in `forward()`. The
+classification head was therefore **random on every load**, making SG2's verdicts
+non-deterministic — image detection swung **22.5–95.5% across five identical-configuration runs**
+while LG4/LG3V were bit-identical. A **second** bug: the violated probability is
+`probabilities[:,0]` (the "Yes" token), but the code used `[:,1]` (the transformers docstring is
+internally inconsistent). Both are fixed. **Every SG2 number in prior CHANGELOG entries
+(100% / 37.5% / 89% / 98.5% and the associated "rendering-fragility" finding) is an artifact of
+these bugs and is retracted.**
+
+**The fix.** `self._model.model.tie_weights()` after `from_pretrained` (binds `lm_head` to the
+loaded embeddings) + use `probabilities[:,0]`. Detection is now **deterministic** (three
+independent runs: 174/200 harmful, 23/500 benign each) and **discriminating**.
+
+**Corrected canonical results (`results/full_run/`).** SG2 image detection **87.0%** at **9.2%
+image over-refusal** — the best-calibrated single image guard here, text-blind by construction. LG4
+(92.5%/82.0%) and LG3V (89.0%/100.0%) unchanged.
+
+**Reframe.** The corrected data supports a stronger, constructive thesis: blind spots are
+architecture-specific **and complementary**, so a cross-modal ensemble (LG4⊕SG2) covers both
+channels cheaply (img det 82%→97%, img ASR 11.5%→2.5%, +3pp over-refusal) and — because the carrier
+prompt is a text-context attack that SG2 never reads — is **carrier-robust** (image detection
+≥87% under all 18 carriers vs LG4 alone collapsing to 6%). The prior "no cheap ensemble" and "SG2
+rendering fragility" conclusions are retracted. `writeup/paper.md` and `README.md` rewritten;
+`§4.1` (rendering fragility) removed; UAP reframed as a robustness spectrum; new figure
+`fig_carrier_robustness.png`; SG2 loading pitfall documented in the paper's Appendix B.
+
+**Repository cleanup.** Renamed the corrected artifacts to canonical names and removed superseded
+/ bug-derived ones. Renames: `full_run_v3`→`full_run`, `adaptive_run_fixed`→`adaptive_run`,
+`rendering_sweep_probe_validated_fixed`→`rendering_sweep_probe_validated`;
+`uap_sg2_fixed` + `uap_sg2_fixed_e16` consolidated into `uap_sg2` (both ε in one `results.json`).
+Removed: the pre-fix `full_run` (37.5% SG2), `full_run_2guard_deprecated`, `full_run_v2`, the
+pre-fix `adaptive_run`, the top-level `ensemble/` and `stats/` (now under `full_run/`), the pre-fix
+`uap_sg2`, the pre-fix `rendering_sweep_probe_validated`, the retracted `sg2_rendering_probe/`
+investigation and its two probe scripts, and two orphaned per-guard figures. Prior-run history is
+preserved in git and in the superseded entries below.
+
+> **NOTE:** the entry below (and all earlier SG2 numbers) is **superseded** — retained for history.
+
+---
+
+## [Superseded] — post-initial-study extensions (SG2 numbers here are bug artifacts)
 
 ### Data correction: SG2 canonical image detection is 37.5% (rendering-fragility finding)
 

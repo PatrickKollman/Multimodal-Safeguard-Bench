@@ -28,19 +28,19 @@
   },
   "shield_gemma_2": {
     "detection_recall_text": 0.0,
-    "detection_recall_image": 0.375,
+    "detection_recall_image": 0.87,
     "asr_text": 0.57,
-    "asr_image": 0.38,
-    "asr_overall": 0.475,
-    "over_refusal": 0.07,
+    "asr_image": 0.105,
+    "asr_overall": 0.3375,
+    "over_refusal": 0.046,
     "text_asr_reduction": 0.0,
-    "image_asr_reduction": 0.22499999999999998,
-    "protection_gap": -0.22499999999999998
+    "image_asr_reduction": 0.5,
+    "protection_gap": -0.5
   },
   "_run_meta": {
-    "git_commit": "82fbbb6c31a5f18bff7f1b46aff24ac76223b94a",
-    "run_dir": "results/full_run",
+    "git_commit": "04410eacb69f6b291887cee3cf836525dee16801",
+    "run_dir": "results/full_run_v3",
     "env_metadata": "env_metadata.json",
-    "timestamp": "2026-07-09T22:52:53.954536"
+    "timestamp": "2026-07-11T01:38:38.870605"
   }
 }

@@ -29,10 +29,10 @@
       "padding": 42
     },
     "n_items": 200,
-    "lg4_det": 0.035,
+    "lg4_det": 0.02,
     "sg2_det": 1.0,
     "asr_ug": 0.125,
-    "asr_lg4": 0.125,
+    "asr_lg4": 0.115,
     "asr_sg2": 0.0
   },
   {
@@ -47,11 +47,11 @@
       "padding": 46
     },
     "n_items": 200,
-    "lg4_det": 0.065,
-    "sg2_det": 1.0,
-    "asr_ug": 0.07,
-    "asr_lg4": 0.065,
-    "asr_sg2": 0.0
+    "lg4_det": 0.05,
+    "sg2_det": 0.98,
+    "asr_ug": 0.095,
+    "asr_lg4": 0.085,
+    "asr_sg2": 0.005
   },
   {
     "trial_id": 7,
@@ -101,10 +101,10 @@
       "padding": 41
     },
     "n_items": 200,
-    "lg4_det": 0.0,
+    "lg4_det": 0.015,
     "sg2_det": 1.0,
-    "asr_ug": 0.08,
-    "asr_lg4": 0.08,
+    "asr_ug": 0.06,
+    "asr_lg4": 0.06,
     "asr_sg2": 0.0
   }
 ]
