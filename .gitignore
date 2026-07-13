@@ -49,12 +49,15 @@ datasets/
 # Raw model outputs may contain harmful text — keep them local.
 # Per-run JSONL files (guard outputs, generations, judge outputs) are excluded.
 # OK to commit: results/{run_id}/metrics.json, results/{run_id}/config.yaml, figures.
-# Exception: guard_*.jsonl for full_run contain only verdicts (no harmful text) and
-# are committed so detection-recall claims are independently verifiable without a GPU.
+# Exceptions: guard_*.jsonl and judge_unguarded.jsonl for full_run contain only
+# verdicts (no harmful text) and are committed so ASR and detection-recall claims
+# are independently verifiable without a GPU. gen_*.jsonl stays excluded (contains
+# raw LLaVA completions on harmful prompts; available to qualified researchers on request).
 results/**/guard_*.jsonl
 !results/full_run/guard_*.jsonl
 results/**/gen_*.jsonl
 results/**/judge_*.jsonl
+!results/full_run/judge_unguarded.jsonl
 results/raw/
 **/raw_generations*
 *.log
