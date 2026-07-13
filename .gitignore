@@ -36,6 +36,8 @@ weights/
 *.gguf
 .cache/
 huggingface/
+# UAP delta tensors are small research artifacts (~3 MB each), not model weights
+!results/**/*.pt
 
 # --- Data: pull/render from source via loaders; do not commit corpora ---
 # (Avoids redistributing harmful benchmark content and keeps the repo small.)

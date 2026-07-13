@@ -83,6 +83,47 @@ def build_metrics(
     return metrics
 
 
+def build_guarded_judge_results(
+    guard_results: list[GuardResult],
+    judge_unguarded: list[JudgeResult],
+) -> list[JudgeResult]:
+    """
+    Derive per-guard judge results without re-running generation or judging.
+
+    Blocked items → refused (complied=False).
+    Non-blocked items → copy the unguarded judge result for that item.
+
+    This is exact: the guard is a pure pre-filter. If an item passes through,
+    the VLM receives the identical input it received in the unguarded run and
+    produces an identical response, so the unguarded judge verdict applies.
+    """
+    ug_by_id = {r.item_id: r for r in judge_unguarded}
+    results = []
+    for gr in guard_results:
+        if gr.blocked:
+            results.append(JudgeResult(
+                item_id=gr.item_id,
+                intent_id=gr.intent_id,
+                modality=gr.modality,
+                run_id=gr.guard_name,
+                complied=False,
+                refused=True,
+                raw_output="[BLOCKED]",
+            ))
+        elif gr.item_id in ug_by_id:
+            ug = ug_by_id[gr.item_id]
+            results.append(JudgeResult(
+                item_id=ug.item_id,
+                intent_id=ug.intent_id,
+                modality=ug.modality,
+                run_id=gr.guard_name,
+                complied=ug.complied,
+                refused=ug.refused,
+                raw_output=ug.raw_output,
+            ))
+    return results
+
+
 def save_metrics(metrics: dict, path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, "w") as f:
