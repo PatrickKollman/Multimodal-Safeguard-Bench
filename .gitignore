@@ -1,0 +1,61 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.bak
+*.egg-info/
+.eggs/
+build/
+dist/
+.pytest_cache/
+.ipynb_checkpoints/
+
+# --- Virtual environments ---
+.venv/
+venv/
+env/
+
+# --- Secrets / credentials (never commit) ---
+.env
+*.key
+*.pem
+secrets.*
+credentials*
+
+# --- Personal Claude Code context (keep local; never commit) ---
+CLAUDE.local.md
+msbench-private.md
+.claude/*.local.*
+
+# --- Model weights & caches (large; pull from Hugging Face instead) ---
+models/
+weights/
+*.safetensors
+*.pt
+*.pth
+*.bin
+*.gguf
+.cache/
+huggingface/
+
+# --- Data: pull/render from source via loaders; do not commit corpora ---
+# (Avoids redistributing harmful benchmark content and keeps the repo small.)
+data/
+datasets/
+*.parquet
+
+# --- Results: commit aggregate tables + figures ONLY, never raw pipeline outputs ---
+# Raw model outputs may contain harmful text — keep them local.
+# Per-run JSONL files (guard outputs, generations, judge outputs) are excluded.
+# OK to commit: results/{run_id}/metrics.json, results/{run_id}/config.yaml, figures.
+results/*/guard_*.jsonl
+results/*/gen_*.jsonl
+results/*/judge_*.jsonl
+results/raw/
+**/raw_generations*
+*.log
+
+# --- OS / editor ---
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
