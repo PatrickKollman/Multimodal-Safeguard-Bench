@@ -16,6 +16,7 @@ guards:
   device: auto
 - name: llama_guard_3_vision
   model_id: meta-llama/Llama-Guard-3-11B-Vision
+  revision: 62d4275543ec7503de66c486de1c0c2103e365ac
   dtype: bfloat16
   load_in_4bit: true
   device: auto

@@ -48,6 +48,40 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(mess
 log = logging.getLogger(__name__)
 
 
+# ── Environment metadata ──────────────────────────────────────────────────────
+
+def _write_env_metadata(run_dir: Path) -> None:
+    import platform
+    meta: dict = {"python": sys.version, "platform": platform.platform()}
+    for pkg in ("PIL", "transformers", "torch"):
+        try:
+            mod = __import__(pkg)
+            meta[pkg] = getattr(mod, "__version__", "unknown")
+        except ImportError:
+            meta[pkg] = "not installed"
+    try:
+        from PIL import ImageFont, features
+        font = ImageFont.load_default(size=24)
+        font_path = getattr(font, "path", None)
+        meta["pillow_font"] = font_path if isinstance(font_path, str) else "<embedded>"
+        meta["freetype_version"] = features.version_module("freetype2") or "unknown"
+    except Exception as e:
+        meta["pillow_font"] = f"error: {e}"
+    try:
+        import torch
+        meta["cuda_available"] = torch.cuda.is_available()
+        if torch.cuda.is_available():
+            meta["cuda_device_count"] = torch.cuda.device_count()
+            meta["cuda_devices"] = [
+                torch.cuda.get_device_name(i) for i in range(torch.cuda.device_count())
+            ]
+    except Exception:
+        pass
+    env_path = run_dir / "env_metadata.json"
+    env_path.write_text(json.dumps(meta, indent=2))
+    log.info(f"  Env: Pillow={meta.get('PIL', '?')}  transformers={meta.get('transformers', '?')}  torch={meta.get('torch', '?')}")
+
+
 # ── Cache helpers ─────────────────────────────────────────────────────────────
 
 def _hf_cache_path(model_id: str) -> Path:
@@ -185,6 +219,25 @@ def _preflight(cfg: dict, active_guard_names: set[str], phase: str) -> None:
         sys.exit(1)
 
 
+# ── Metrics stamp ─────────────────────────────────────────────────────────────
+
+def _stamp_metrics(metrics: dict, run_dir: Path) -> None:
+    """Inject _run_meta into metrics so the JSON is self-documenting."""
+    import subprocess
+    try:
+        commit = subprocess.check_output(
+            ["git", "rev-parse", "HEAD"], text=True, stderr=subprocess.DEVNULL
+        ).strip()
+    except Exception:
+        commit = "unknown"
+    metrics["_run_meta"] = {
+        "git_commit": commit,
+        "run_dir": str(run_dir),
+        "env_metadata": "env_metadata.json",
+        "timestamp": datetime.now().isoformat(),
+    }
+
+
 # ── Phase implementations ──────────────────────────────────────────────────────
 
 def _phase_guard(cfg, args, run_dir: Path, harmful, benign, active_guard_names):
@@ -277,6 +330,7 @@ def _phase_metrics(cfg, run_dir: Path, args):
         judge_guarded_by_name=judge_guarded,
         benign_guard_results_by_name=guard_results_benign,
     )
+    _stamp_metrics(metrics, run_dir)
     save_metrics(metrics, run_dir / "metrics.json")
     table = format_table(metrics)
     print("\n" + table + "\n")
@@ -306,6 +360,7 @@ def main(args: argparse.Namespace) -> None:
     if src != dst:
         shutil.copy(args.config, run_dir / "config.yaml")
     log.info(f"Run ID: {run_id}  →  {run_dir}  [phase: {args.phase}]")
+    _write_env_metadata(run_dir)
 
     active_guard_names = set(args.guards) if args.guards else {g["name"] for g in cfg["guards"]}
 
@@ -371,6 +426,7 @@ def main(args: argparse.Namespace) -> None:
             judge_guarded_by_name=judge_guarded,
             benign_guard_results_by_name=guard_results_benign,
         )
+        _stamp_metrics(metrics, run_dir)
         save_metrics(metrics, run_dir / "metrics.json")
         table = format_table(metrics)
         print("\n" + table + "\n")
