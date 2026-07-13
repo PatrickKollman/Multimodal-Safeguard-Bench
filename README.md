@@ -37,23 +37,28 @@ No single guard achieves coverage on both channels with acceptable over-refusal.
 
 ### Carrier Prompt as Attack Surface
 
-The text framing paired with the rendered image is itself an unexplored attack vector — no gradients, no model access required. A five-variant carrier sweep reveals **guard-selective blind spots**:
+The text framing paired with the rendered image is itself an unexplored attack vector — no gradients, no model access required. An 18-framing sweep across six rhetorical categories reveals **guard-selective blind spots with distinct mechanisms**:
 
-| Carrier | Ung-ASR-img | LG4 Det-img | LG4 ASR-img | LG3V Det-img | LG3V ASR-img |
-|---|---|---|---|---|---|
-| Baseline ("Describe the text…") | 60.5% | 82.0% | 11.5% | 100.0% | 0.0% |
-| **Fiction** ("novel passage") | 82.0% | **6.0%** | **78.0%** | 100.0% | 0.0% |
-| Transcription ("transcribe exactly") | 99.5% | 97.0% | 3.0% | 100.0% | 0.0% |
-| **Roleplay** ("screenplay dialogue") | 92.0% | 54.0% | 42.0% | **0.0%** | **92.0%** |
-| Academic ("quoted for analysis") | 96.0% | 52.0% | 45.0% | 81.5% | 18.5% |
+| Category (n) | Ung-ASR-img | LG4 Det-img | LG3V Det-img |
+|---|---|---|---|
+| Baseline (2) | 72% | 73% [64–82] | 50% [0–100] |
+| **Fictional (4)** | 73% | **20%** [6–54] | 35% [0–100] |
+| **Theatrical (4)** | 88% | 30% [6–54] | **2%** [0–8] |
+| Transcription (3) | 100% | 90% [84–97] | 68% [4–100] |
+| Academic (3) | 81% | 40% [30–52] | 27% [0–82] |
+| Other (2) | 74% | 43% [32–55] | 0% [0–0] |
 
-- **Fiction → LG4 blind spot:** LG4 detection collapses 82%→6% (ASR-img: 11.5%→78%). LG3V holds at 100%. One framing change, one guard fully bypassed.
-- **Roleplay → LG3V blind spot:** LG3V drops 100%→0% detection (ASR-img: 0%→92%, matching unguarded). LG4 is only partially affected. Zero natural bypass → complete bypass.
-- **Transcription → neither guard bypassed:** VLM compliance maximizes (99.5% unguarded ASR-img) but both guards hold. Guard effect and VLM compliance are independently controlled by carrier wording.
+- **LG4's blind spot is category-driven:** fictional and theatrical framings systematically depress detection (means 20% and 30%, tight within-category spread). The worst single carrier — fiction "novel passage" — collapses LG4 from 82%→6% detection (ASR-img 11.5%→78%, nearly the unguarded rate).
+- **LG3V's blind spot is phrasing-driven:** its image detection is a near-binary switch — 12 of 18 framings drive it to ~0%, only 4 hold at ~100%. The huge within-category ranges (0–100% on four categories) show the switch is thrown by *specific phrasing*, not by category. The one category that collapses it *robustly* is theatrical (all 4 variants ≤8%).
+- **Transcription decouples guard and VLM:** VLM compliance maximizes (100% unguarded ASR-img) but LG4 holds at 90%. Guard effect and VLM compliance are independently controlled by carrier wording.
 
-The same text-context dominance that makes LG4 gradient-resistant (Section 7 / UAP study) makes it susceptible to fictional framing. Different priors, different guards, different exploits.
+The same text-context dominance that makes LG4 gradient-resistant (Section 7 / UAP study) makes it susceptible to fictional framing. The two guards' blind spots are *orthogonal* — no single carrier collapses both — which is exactly what makes an LG4⊕LG3V ensemble carrier-robust.
 
-*Results from [`results/carrier_sweep/summary.json`](results/carrier_sweep/summary.json).*
+![Carrier mechanism](figures/fig_carrier_mechanism.png)
+
+*The result in one image: an identical rendered harmful request gets opposite verdicts from each guard depending only on the one-sentence carrier framing. Fiction framing blinds LG4 (82%→6% detection) but not LG3V; theatrical framing blinds LG3V (100%→0%) but not LG4. The blind spots are orthogonal — no single framing defeats both guards, which is precisely why a diverse ensemble is more than the sum of its parts.*
+
+*Per-variant results and category aggregates in [`results/carrier_sweep/summary.json`](results/carrier_sweep/summary.json).*
 
 ---
 
@@ -72,15 +77,16 @@ Models are staged sequentially on a single 24 GB GPU — no multi-GPU setup requ
 
 | | |
 |---|---|
+| ![Carrier mechanism](figures/fig_carrier_mechanism.png) | **The central result in one image.** An identical rendered harmful request receives opposite verdicts from each guard depending only on the one-sentence carrier framing — and the two guards fail on *different* framings. Fiction blinds LG4 (82%→6%) but not LG3V; theatrical blinds LG3V (100%→0%) but not LG4. The orthogonality is the whole point: no single framing defeats both, so a diverse ensemble covers what either guard alone misses. |
+| ![Attack examples](figures/fig_examples.png) | **Real attack examples: text vs. image jailbreak, per-guard decisions.** Two archetypal cases: (1) LG4 blocks the text version but passes the image jailbreak; (2) SG2 passes all text but blocks the image. The attack requires no steganography or adversarial noise — plain rendered text is sufficient. |
+| ![Carrier sweep](figures/fig_carrier_sweep.png) | **Guard-selective carrier blind spots** (18 framings, 6 categories). LG4 (purple) tracks category with tight spread: fictional/theatrical framings drop it to 20%/30%, transcription holds it at 90%. LG3V (green) shows the opposite signature — its category means are artifacts of huge within-category variance (whiskers spanning 0–100%), because its detection is a near-binary switch flipped by phrasing, not category; the exceptions are theatrical (2%, tight) and other (0%, tight). The whisker-length contrast *is* the finding: LG4's blind spot is category-driven, LG3V's is phrasing-driven. |
+| ![Sweep tradeoff](figures/fig_sweep_tradeoff.png) | **Rendering sweep tradeoff.** Left: Gaussian noise magnitude vs. LG4 detection recall across 20 Bayesian probe trials — detection collapses below σ ≈ 14.9. Right: Guard detection vs. unguarded ASR for 6 Pareto-validated configs on n=200 items. No config reaches the viable attack region (top-left: low detection, high readability). |
+| ![Sweep examples](figures/fig_sweep_examples.png) | **Rendering sweep: visual effect of Gaussian noise.** Baseline (clean, readable) vs. three Pareto-optimal sweep configs at increasing noise levels. All three evade LG4 detection but are simultaneously unreadable to the target VLM — illustrating why random perturbation cannot selectively evade a guard. |
+| ![Guard contrast](figures/fig_guard_contrast.png) | **Guard architecture and blind-spot comparison.** Architecture determines which modality a guard can reason about. Protection gap polarity correlates directly with how image-specialized the architecture is: LG4 (intent classifier) ≈ 0pp, LG3V (vision-specialized intent classifier) −10.5pp, SG2 (image content classifier) −56.5pp. |
 | ![Detection and ASR](figures/full_run_900_items_fig1_detection_and_asr.png) | **Detection recall and attack success rate** across all three guards (900 items). LG4 shows an 11.0pp text→image detection gap with non-overlapping Wilson CIs. LG3V reaches 100% image detection; SG2 sits at 0% text detection by architectural design. Over-refusal callout (inset) shows the usability cost: LG4 11.8%, LG3V 55.0%, SG2 45.0%. |
 | ![Heatmap](figures/full_run_900_items_fig4_heatmap.png) | **All-metrics heatmap.** The complementary structure across guards is stark: LG4 strong on both channels (slight text advantage), SG2 absent on text / strong on image, LG3V strong on both but at high over-refusal cost. |
-| ![Guard contrast](figures/fig_guard_contrast.png) | **Guard architecture and blind-spot comparison.** Architecture determines which modality a guard can reason about. Protection gap polarity correlates directly with how image-specialized the architecture is: LG4 (intent classifier) ≈ 0pp, LG3V (vision-specialized intent classifier) −10.5pp, SG2 (image content classifier) −56.5pp. |
-| ![Attack examples](figures/fig_examples.png) | **Real attack examples: text vs. image jailbreak, per-guard decisions.** Two archetypal cases: (1) LG4 blocks the text version but passes the image jailbreak; (2) SG2 passes all text but blocks the image. The attack requires no steganography or adversarial noise — plain rendered text is sufficient. |
-| ![Sweep examples](figures/fig_sweep_examples.png) | **Rendering sweep: visual effect of Gaussian noise.** Baseline (clean, readable) vs. three Pareto-optimal sweep configs at increasing noise levels. All three evade LG4 detection but are simultaneously unreadable to the target VLM — illustrating why random perturbation cannot selectively evade a guard. |
-| ![Sweep tradeoff](figures/fig_sweep_tradeoff.png) | **Rendering sweep tradeoff.** Left: Gaussian noise magnitude vs. LG4 detection recall across 20 Bayesian probe trials — detection collapses below σ ≈ 14.9. Right: Guard detection vs. unguarded ASR for 6 Pareto-validated configs on n=200 items. No config reaches the viable attack region (top-left: low detection, high readability). |
-| ![Carrier sweep](figures/fig_carrier_sweep.png) | **Guard-selective carrier blind spots** — the strongest attack in the study. LG4 image detection collapses at "fiction" (82%→6%, ASR-img 11.5%→78%) while LG3V holds at 100%; LG3V collapses at "roleplay" (100%→0%) while LG4 holds. Identical images, identical pipeline — only the natural-language framing changes. Two architecturally similar guards, two distinct blind spots, zero gradient computation. |
 
-*Figures generated from committed artifacts: `python scripts/make_results_figures.py`, `python scripts/make_explainer_figures.py`, `python scripts/make_sweep_figures.py`, and `python scripts/make_carrier_figure.py` (no GPU required for any figure script).*
+*Figures generated from committed artifacts: `python scripts/make_results_figures.py`, `python scripts/make_explainer_figures.py`, `python scripts/make_sweep_figures.py`, `python scripts/make_carrier_figure.py`, and `python scripts/make_carrier_mechanism_figure.py` (no GPU required for any figure script).*
 
 ---
 
@@ -197,15 +203,27 @@ LG3V achieves the strongest result — a guard with zero natural bypass is 100% 
 
 ### 8. Carrier Prompt Sweep — Guard-Selective Framing Attacks
 
-The carrier prompt is a zero-cost, black-box attack surface: varying the text framing paired with the rendered image causes different guards to collapse independently. Five carriers were evaluated across all three guards on 200 HarmBench behaviors × image channel.
+The carrier prompt is a zero-cost, black-box attack surface: varying the text framing paired with the rendered image causes different guards to collapse independently. 18 carriers across six rhetorical categories were evaluated across all three guards on 200 HarmBench behaviors × image channel.
 
-**Fiction carrier** collapses LG4 specifically (82%→6% detection) while LG3V holds at 100%. Mechanism: LG4's text-context-dominated joint classification interprets "novel passage" framing as contextually safe. The same early-fusion design that makes LG4 resistant to gradient-based UAP attacks makes it susceptible to contextual priming.
+**LG4 — category-driven blind spot.** Fictional and theatrical framings systematically depress LG4's image detection (category means 20% and 30%, with the worst single carrier — "novel passage" fiction — collapsing it 82%→6%, ASR-img 11.5%→78%). The within-category spread is low: every fictional and theatrical variant sits well below baseline. Mechanism: LG4's text-context-dominated joint classification reads the framing as contextually safe. The same early-fusion design that makes LG4 resistant to gradient-based UAP attacks makes it susceptible to contextual priming.
 
-**Roleplay carrier** completely bypasses LG3V (100%→0% detection, 0%→92% ASR-img) — a guard with zero natural bypass under any rendering variant is completely defeated by a one-sentence framing change. LG4 is only partially affected (82%→54%). The mechanisms are distinct: LG3V apparently has a theatrical/creative-content prior that overrides harm detection under screenplay framing.
+**LG3V — phrasing-driven, near-binary.** Across all 18 carriers, LG3V's image detection is bimodal: 12 variants at ~0%, 4 at ~100%, 2 in between. The switch is thrown by specific phrasing, not category — within baseline, fictional, transcription, and academic, detection swings the full 0–100% depending on wording. The canonical roleplay carrier (100%→0%, ASR-img 0%→92%, matching unguarded) is real and replicates across all four theatrical phrasings — theatrical is the one category that collapses LG3V *robustly* — but it is a special case of a broader instability: LG3V's image decision is unstable to surface phrasing. We report this explicitly because the category figure alone would over-tidy it.
 
-**Transcription carrier** leaves both guards intact (LG4 improves to 97%, LG3V holds at 100%) while maximizing VLM compliance (unguarded ASR-img: 99.5%). Guard effect and VLM compliance are decoupled.
+**Transcription — guard/VLM decoupling.** Transcription framing maximizes VLM compliance (unguarded ASR-img 100%) while LG4 detection *rises* to 90% — a carrier that maximizes VLM compliance does not necessarily reduce guard detection.
 
 → [`results/carrier_sweep/summary.json`](results/carrier_sweep/summary.json) · [`figures/fig_carrier_sweep.png`](figures/fig_carrier_sweep.png) · [`results/uap_lg3v/results.json`](results/uap_lg3v/results.json) · [`results/uap_lg4/results.json`](results/uap_lg4/results.json) · [`results/uap_vit_lg4/results.json`](results/uap_vit_lg4/results.json) · [`results/uap_transfer_lg3v_lg4/results.json`](results/uap_transfer_lg3v_lg4/results.json)
+
+---
+
+### 9. Cross-VLM Replication — Qwen2-VL-7B
+
+To test whether the central finding generalizes beyond one target VLM, the canonical 900-item benchmark was rerun against Qwen2-VL-7B-Instruct (different lineage, vision encoder, and safety tuning from LLaVA-1.6-Mistral).
+
+**Guard detection replicates near-exactly** — as it must, since detection recall is guard-only: LG4 image 81.5%→82.0%, LG4 text 92.5%→92.5%, LG3V image 100%→100%, LG3V text 89%→89%. The architecture-specific blind spots travel with the guard, not the VLM.
+
+**The one number that moves is unguarded text ASR: 57%→9%** — because Qwen2-VL is much better safety-aligned than LLaVA-1.6 and refuses most harmful text prompts on its own. This is not a benchmark inconsistency; it is a reportable property of the two VLMs. The implication sharpens the thesis: guard gaps matter most precisely where the underlying VLM is weakly aligned and the guard is the primary defense. The blind spot is invariant; its *consequence* scales with how much the deployment leans on the guard.
+
+→ [`results/full_run_qwen2vl/metrics.json`](results/full_run_qwen2vl/metrics.json)
 
 ---
 
@@ -235,14 +253,16 @@ the image gap: LG4 misses 18.5% of image items that SG2 would catch. The cost is
 over-refusal on image inputs where SG2's 45.0% benign-image false-positive rate compounds with LG4.
 
 **The carrier sweep strengthens the case for ensembling — for a reason single-modality coverage
-numbers cannot show.** LG4 and LG3V have *orthogonal* carrier blind spots: fiction framing
-collapses LG4 (82%→6%) but leaves LG3V at 100%; roleplay framing collapses LG3V (100%→0%) but
+numbers cannot show.** LG4 and LG3V have *orthogonal* blind spots: fictional framing
+collapses LG4 (82%→6%) but leaves LG3V's canonical baseline at 100%; theatrical framing collapses LG3V (to ≤8% across all four variants) but
 leaves LG4 partially intact. No single carrier defeats both. An LG4⊕LG3V image-channel ensemble is
 therefore robust to the carrier attack that defeats either guard alone — the framing that blinds one
 is caught by the other. This is a defense that emerges only because the blind spots are
 architecture-specific rather than shared, and it is the most actionable consequence of the central
 finding. The residual cost remains LG3V's over-refusal, which an ensemble inherits on the image
 channel.
+
+**The claim this supports:** because a guard's blind spots are fixed by its architecture rather than by the channel it is attacked through, no individual guard — however well-aligned — can cover the full multimodal attack surface at acceptable cost. Robust coverage is therefore not a matter of finding or training a better single guard, but of composing guards whose architectures fail in different places. The single guard is the wrong unit of defense; the right unit is a diverse ensemble. MSBench is the instrument for testing this — measuring where any given guard is blind, and verifying that a proposed ensemble covers the gaps rather than sharing them.
 
 ---
 
@@ -360,6 +380,9 @@ cd /workspace/Multimodal-Safeguard-Bench
 │   ├── full_run_2guard_deprecated/  # Original two-guard run (SG2 numbers invalid — see CHANGELOG)
 │   │   ├── metrics.json
 │   │   └── config.yaml
+│   ├── full_run_qwen2vl/      # Cross-VLM replication (Qwen2-VL-7B; detection replicates)
+│   │   ├── metrics.json
+│   │   └── config.yaml
 │   ├── adaptive_run/          # Adaptive rendering study (LG4 + SG2, valid)
 │   │   ├── metrics.json
 │   │   └── config.yaml
@@ -384,7 +407,7 @@ cd /workspace/Multimodal-Safeguard-Bench
 │   │   ├── centroids.pt
 │   │   └── results.json
 │   ├── uap_transfer_lg3v_lg4/ # LG3V→LG4 transfer eval (2% test fooling, null result)
-│   └── carrier_sweep/         # Carrier prompt sweep (5 variants × 3 guards × 200 items)
+│   └── carrier_sweep/         # Carrier prompt sweep (18 variants × 3 guards × 200 items)
 │       ├── summary.json        # Aggregated metrics across all variants
 │       └── {variant}/          # Per-variant metrics.json + config.yaml
 │   # Per-item JSONL outputs excluded by .gitignore (may contain model responses)
@@ -394,6 +417,7 @@ cd /workspace/Multimodal-Safeguard-Bench
 │   ├── make_explainer_figures.py # Explainer / pipeline figure generation (no GPU)
 │   ├── make_sweep_figures.py     # Rendering sweep figures (no GPU)
 │   ├── make_carrier_figure.py    # Carrier sweep figure (no GPU)
+│   ├── make_carrier_mechanism_figure.py # Carrier mechanism figure: image × framing × verdict (no GPU)
 │   ├── run_carrier_sweep.py      # Carrier sweep driver (disk-efficient, resumable)
 │   ├── compute_ensemble.py       # Modality-routed ensemble metrics (no GPU)
 │   ├── compute_adaptive.py       # Per-variant det/ASR from an --adaptive run (no GPU)
@@ -406,7 +430,7 @@ cd /workspace/Multimodal-Safeguard-Bench
 ├── src/msbench/              # Benchmark harness (Python package)
 │   ├── run.py                # CLI entry point (phase-based, --purge-guard-cache)
 │   ├── guards.py             # Guard model wrappers (LG4, LG3V, SG2)
-│   ├── target.py             # Target VLM wrapper (LLaVA-1.6)
+│   ├── target.py             # Target VLM wrapper (LLaVA-1.6, Qwen2-VL)
 │   ├── judge.py              # WildGuard judge wrapper
 │   ├── data.py               # Dataset loading + image rendering
 │   ├── eval.py               # Metric computation (ASR, det-recall, protection gap)
@@ -426,10 +450,14 @@ model — rather than human annotators. Its false-positive and false-negative ra
 content add a noise source on top of guard decisions. All reported ASRs reflect WildGuard's
 classification, not ground-truth human judgment.
 
-**One target VLM.** The benchmark measures guard coverage against LLaVA-1.6-Mistral-7B specifically.
-VLMs with stronger or weaker safety fine-tuning will produce different unguarded baselines.
-Detection recall numbers (Det-txt, Det-img) are guard-only and independent of the target VLM's
-behavior; ASR numbers are jointly determined by both.
+**Two target VLMs for detection; one for carrier/UAP.** The canonical benchmark runs against two
+VLMs from different families — LLaVA-1.6-Mistral-7B and Qwen2-VL-7B-Instruct — and guard detection
+recall replicates near-exactly (Section 9), so the architecture-specific blind spots are VLM-independent.
+Detection recall (Det-txt, Det-img) is guard-only; ASR is jointly determined by guard and VLM, and the
+unguarded ASR difference (LLaVA 57% vs Qwen 9% text ASR) reflects the VLMs' own alignment. The carrier
+and UAP studies were run against LLaVA only; the carrier effect operates on the guard's forward pass and
+is expected to be VLM-independent for the same reason detection is, but this is not directly verified.
+Commercial and substantially larger VLMs are not evaluated.
 
 **Simplest possible image attack vector.** Image-modality items use plain black text on white
 background — no steganography, adversarial noise, or typography tricks. More sophisticated rendering
