@@ -11,7 +11,8 @@ no single guard can.
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 ![Status: results available](https://img.shields.io/badge/status-results%20available-green.svg)
 
-Full writeup: [`writeup/paper.md`](writeup/paper.md) · Development log: [`CHANGELOG.md`](CHANGELOG.md)
+**Paper (PDF):** [`writeup/paper.pdf`](writeup/paper.pdf) · **LaTeX source:** [`writeup/paper.tex`](writeup/paper.tex) · [CHANGELOG](CHANGELOG.md)
+<!-- arXiv link coming soon -->
 
 ---
 
@@ -252,7 +253,8 @@ results/
 scripts/            # figure generators (no GPU) + attack/sweep drivers (GPU)
 src/msbench/        # harness: run, guards, target, judge, data, eval, adaptive
 tests/              # unit tests
-writeup/paper.md    # full writeup (arXiv-ready)
+writeup/paper.pdf   # compiled paper (arXiv-ready PDF)
+writeup/paper.tex   # LaTeX source + references.bib
 ```
 
 ---
@@ -294,7 +296,9 @@ repository by `.gitignore` as they may contain harmful text.
 
 ## License
 
-[MIT](LICENSE). Benchmarked models and datasets retain their own licenses:
+Code: [MIT](LICENSE). Paper (`writeup/paper.pdf`, `writeup/paper.tex`): [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
+
+Benchmarked models and datasets retain their own licenses:
 - HarmBench behaviors: [MIT](https://github.com/centerforaisafety/HarmBench)
 - XSTest: [CC BY 4.0](https://huggingface.co/datasets/natolambert/xstest-v2-copy)
 - Llama Guard 4: [Meta Llama 4 Community License](https://huggingface.co/meta-llama/Llama-Guard-4-12B)
