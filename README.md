@@ -38,7 +38,7 @@ coverage can be *composed* from guards that reason over different modalities.
   (11.8% over-refusal), carrier-vulnerable.
 - **LG3V** — vision-specialized classifier. Its 100% image detection is a **refuse-all-images
   policy** (it blocks 100% of *benign* images too; 55% over-refusal). Untenable alone.
-- **SG2** — image-content classifier, **blind to text by construction** (0% text detection) but,
+- **SG2** — image-content classifier that returns *safe* on text-only input (0% text detection — no image to score), but,
   correctly loaded, the **best-calibrated image guard** here: **87% image detection at 9.2% image
   over-refusal**. Reproducible (identical across 3 runs). *(An earlier draft reported SG2 as weak
   and non-reproducible; that was a silent `lm_head` load bug — see [CHANGELOG](CHANGELOG.md) and
@@ -67,8 +67,9 @@ guards with orthogonal, mechanistically distinct blind spots:
   **82% → 6%** (image ASR 11.5% → 78%).
 - **LG3V's blind spot is phrasing-driven:** a near-binary switch (12/18 framings drive it to ~0%);
   theatrical framing collapses it robustly (≤8%).
-- **SG2 is carrier-invariant by construction** — it never receives the carrier text, so its verdict
-  is identical across all 18 framings.
+- **SG2 is carrier-invariant by construction** — it reads the harmful text rendered *inside* the
+  image (that's its 87%) but never receives the *carrier prompt*, so its verdict is identical
+  across all 18 framings.
 
 **Consequence:** an LG4⊕SG2 image-channel ensemble cannot drop below SG2's 87% floor under any
 carrier. Measured across all 18 framings, **LG4⊕SG2 image detection stays 87–100% while LG4 alone

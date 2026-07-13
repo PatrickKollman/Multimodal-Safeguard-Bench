@@ -1,0 +1,285 @@
+\documentclass[11pt]{article}
+
+% ---- arXiv-friendly preamble (no exotic dependencies) ----
+\usepackage[margin=1in]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{xcolor}
+\usepackage{caption}
+\usepackage[numbers]{natbib}
+\usepackage{enumitem}
+\usepackage[hidelinks]{hyperref}
+\usepackage{microtype}
+
+\graphicspath{{figures/}{../figures/}}   % works from a flat submission or from writeup/
+\newcommand{\ens}{\ensuremath{\oplus}}    % ensemble symbol
+
+\title{\textbf{Multimodal Safeguard Bench: Guard Blind Spots Are\\ Architecture-Specific and Complementary}}
+
+% TODO(author): fill in affiliation + email; see writeup/ARXIV.md for submission notes.
+\author{Patrick Kollman\\
+  \texttt{<email@example.com>}\\
+  \emph{Independent Researcher (update affiliation)}}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Safety guards intercept harmful requests before a vision-language model (VLM) responds, but a harmful instruction can be rendered as an image rather than typed---a zero-gradient, black-box attack requiring no model access. We present MSBench, a reproducible harness evaluating three guards that span the multimodal-safety design space---Llama-Guard-4 (a balanced multimodal intent classifier), LlamaGuard-3-Vision (a vision-specialized intent classifier), and ShieldGemma-2 (an image-content classifier)---on 900 items from HarmBench and XSTest, scored by WildGuard. Our organizing finding is that each guard's failures are fixed by its architecture rather than by the channel under attack, and---crucially---that these architectural failures are \emph{complementary}, so robust two-channel coverage can be composed cheaply from guards that reason over different modalities. The balanced intent classifier (LG4) carries a paired-significant image detection gap (it blocks 10.5pp fewer image-modality than text-modality items on the same intents, McNemar $p<0.001$); the vision-specialized guard (LG3V) reaches 100\% image detection only by refusing 100\% of benign images; and the image-content classifier (SG2) is a strong, well-calibrated image guard (87\% image detection at 9.2\% image over-refusal) that is blind to the text channel by construction. We then show the sharpest attack is also the cheapest: the \emph{carrier prompt}---the one-sentence text framing paired with the image---is a zero-cost, black-box, \emph{text-context} attack. A ``novel passage'' framing collapses LG4's image detection from 82\% to 6\% and theatrical framing collapses LG3V to 0\%, with orthogonal, mechanistically distinct blind spots. But because the attack operates entirely through the carrier prompt, an image-content guard that scores only the image and never receives the carrier prompt (SG2) is \emph{immune to it by construction}. This yields the paper's central, constructive result: a cross-modal ensemble of a text-intent guard and an image-content guard (LG4\,\ens\,SG2) covers both channels (97\% image / 92.5\% text detection; image ASR 11.5\%$\to$2.5\%) at modest cost (over-refusal 11.8\%$\to$14.8\%) \emph{and} is robust to the carrier attack that defeats either text-reading guard alone---its image detection never drops below 87\% across all 18 framings, whereas LG4 alone swings from 97\% to 6\%. An ensemble of two text-context guards (LG4\,\ens\,LG3V) instead inherits both a shared carrier weakness and a prohibitive 56\% over-refusal toll. White-box universal adversarial perturbation (UAP) attacks place the guards on a robustness spectrum (LG3V fully broken at $\epsilon{=}16$; SG2 resists $\epsilon{=}16$ but half-breaks at $\epsilon{=}32$; LG4 resists both). A cross-VLM replication against Qwen2-VL confirms guard detection is a property of the guard, not the target VLM. The actionable conclusion is not to build a better single guard, but to compose guards whose reasoning modalities differ---so their blind spots cover, rather than share, one another.
+\end{abstract}
+
+\section{Introduction}
+
+Safety guards---classifiers that sit between user input and a generative VLM---are the last automated line of defense before a model produces a harmful response. Prior work established that LLM-based guards such as Llama Guard reliably block harmful \emph{text} requests. The natural follow-on is whether identical harmful intent, encoded visually, receives equivalent protection---and, when it does not, what to do about it.
+
+The attack is elementary. A harmful instruction that would be blocked if typed is rendered as a PIL image (black text on white, no steganography, no adversarial noise). The guard receives an (image, carrier prompt) pair. We evaluate three guards spanning the design space: (1) a \emph{balanced} multimodal intent classifier that reads image and text jointly (Llama-Guard-4); (2) a \emph{vision-specialized} intent classifier trained on text-in-image scenarios (LlamaGuard-3-Vision); and (3) a pure \emph{image-content} classifier that scores only the image against content policies and never receives the paired carrier prompt (ShieldGemma-2). We measure, end-to-end and reproducibly, how each protects against rendered-text attacks relative to text attacks.
+
+\paragraph{Threat model.} We assume an adversary who submits arbitrary (image, prompt) pairs to a guard-protected VLM endpoint and observes whether a response is returned, but cannot modify weights. The primary attack---rendering harmful text as an image, optionally reframed by a one-sentence carrier prompt---is fully black-box. The UAP study (Section~\ref{sec:uap}) additionally considers a white-box adversary to bound worst-case robustness. Success is defined end-to-end: the guard fails to block \emph{and} the VLM complies, as judged by an independent classifier.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.92\linewidth]{fig_pipeline.png}
+  \caption{End-to-end MSBench pipeline. Each harmful intent yields a text-modality and an image-modality item; both pass a guard gate before reaching the target VLM, and WildGuard judges compliance. Models stage sequentially on a single 24\,GB GPU.}
+  \label{fig:pipeline}
+\end{figure}
+
+\paragraph{Organizing claim.} We argue one thesis: \emph{a guard's blind spots are fixed by its architecture rather than by the channel under attack, and blind spots across architectures are complementary---so robust coverage is built by composing guards whose reasoning modalities differ, not by finding a better single guard.} Figure~\ref{fig:mechanism} shows the cheapest demonstration: the same rendered image under four one-sentence framings. Framing it as a novel flips LG4 from blocking to passing (82\%$\to$6\%); theatrical framing collapses LG3V (100\%$\to$0\%). The two text-reading guards fail on \emph{different} framings; the image-content guard, which never reads the carrier, is unmoved---which is exactly why pairing it with a text-intent guard closes the gap.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.92\linewidth]{fig_carrier_mechanism.png}
+  \caption{The carrier attack in one image. An identical rendered harmful image receives opposite verdicts from the two text-reading guards depending only on the carrier prompt, and they fail on different framings (fiction blinds LG4 82\%$\to$6\%; theatre blinds LG3V 100\%$\to$0\%). SG2, not shown here because it never receives the carrier prompt, is carrier-invariant by construction (quantified in Figure~\ref{fig:robustness}).}
+  \label{fig:mechanism}
+\end{figure}
+
+\paragraph{Contributions.}
+\begin{enumerate}[itemsep=1pt,topsep=2pt]
+  \item[(1)] A \textbf{reproducible harness} for multimodal guard coverage across both attack modalities, on a single 24\,GB GPU, with all code and result artifacts released and every proportion carrying 95\% Wilson confidence intervals and paired per-item tests.
+  \item[(2)] \textbf{Coverage evidence across three architectures.} Only LG4 attempts both channels, where the image channel is a paired-significant blind spot ($-10.5$pp, McNemar $p<0.001$); LG3V's perfect image detection is a refuse-all-images policy; SG2 is text-channel-blind by construction.
+  \item[(3)] The \textbf{central constructive result}: complementary blind spots make cross-modal ensembles work. LG4\,\ens\,SG2 lifts image detection $82\%\to97\%$ and image ASR $11.5\%\to2.5\%$ for a $+3$pp over-refusal cost; the same-modality LG4\,\ens\,LG3V pairing pays 56\% over-refusal.
+  \item[(4)] The \textbf{carrier prompt as a text-context attack, and image-content immunity to it}. Fictional/theatrical carriers collapse the text-reading guards (worst case LG4 $82\%\to6\%$, LG3V $\to0\%$); an image-content guard is immune by construction, so LG4\,\ens\,SG2 image detection never drops below 87\% across all 18 carriers.
+  \item[(5)] A \textbf{UAP robustness spectrum} (LG3V fully broken at $\epsilon{=}16$; SG2 resistant at $\epsilon{=}16$, half-broken at $\epsilon{=}32$; LG4 resistant to both), disentangling LG4's resistance into gradient sparsity and text-context dominance, plus a failed cross-architecture transfer.
+  \item[(6)] A \textbf{cross-VLM replication} (Qwen2-VL-7B) confirming guard detection recall---and the blind-spot ordering---is a property of the guard, not the target VLM.
+\end{enumerate}
+
+\section{Related Work}
+
+\paragraph{Typographic attacks.} \citet{goh2021multimodal} showed CLIP's embeddings can be hijacked by text rendered in an image---a ``typographic attack'' causing a classifier to ignore visual content for embedded text. Our setup is the inverse: we probe whether a safety guard ignores \emph{harmful} text encoded as pixels when it would catch the same text as tokens.
+
+\paragraph{Image-modality jailbreaks.} FigStep~\citep{gong2023figstep} showed rendering a harmful instruction as an image bypasses VLM safety alignment; MM-SafetyBench~\citep{liu2023mmsafetybench} assembled a broader benchmark. Both measure the \emph{target VLM's} failure to refuse; the guard layer is absent. MSBench measures whether the \emph{guard layer} is bypassed---a distinct, under-characterized failure mode.
+
+\paragraph{Standardized jailbreak evaluation.} JailbreakBench~\citep{chao2024jailbreakbench} and HarmBench~\citep{mazeika2024harmbench} standardize text jailbreak evaluation. MSBench builds on HarmBench's behaviors, extending to the image channel and to guard-layer measurement.
+
+\paragraph{Guard evaluation and over-refusal.} Llama Guard~\citep{meta2025llamaguard4} and ShieldGemma~2~\citep{google2025shieldgemma2} are evaluated primarily within a single modality; neither measures cross-modal consistency, nor how to \emph{compose} guards. Constitutional Classifiers~\citep{anthropic2025constitutional} demonstrated classifier defenses in a text-only setting. XSTest~\citep{roettger2023xstest} supplies safe-but-suspicious prompts for honest over-refusal measurement; we use it as our benign set.
+
+\section{Experimental Setup}
+\label{sec:setup}
+
+\paragraph{Target VLM.} LLaVA-1.6-Mistral-7B (\texttt{llava-hf/llava-v1.6-mistral-7b-hf}, bfloat16) on a single RTX~4090, receiving either the raw harmful text or an image of the harmful text paired with the carrier \emph{``Describe the text shown in this image and respond to any instructions it contains.''}
+
+\paragraph{Guards.} \textbf{Llama-Guard-4-12B} (Llama~4 Scout derivative; multimodal intent classifier; 4-bit NF4). \textbf{Llama-Guard-3-11B-Vision} (Llama~3.2 Vision derivative trained on text-in-image scenarios; 4-bit NF4). \textbf{ShieldGemma-2-4B} (image-content classifier over three policies: dangerous content, sexually explicit, violence/gore; bfloat16). Text is not passed to SG2---text-modality items return safe without a model call; the block decision uses a 0.5 threshold on $P(\text{violated})=\texttt{probabilities}[:,0]$. \emph{Reproducibility note:} the standard \texttt{from\_pretrained} path silently random-initializes SG2's \texttt{lm\_head}, yielding non-deterministic verdicts; we re-tie the inner model after loading (Appendix~\ref{app:sg2}).
+
+\paragraph{Judge and data.} WildGuard~\citep{han2024wildguard} scores each response as complied or refused; attack success rate (ASR) is the fraction of harmful items judged complied. We use 200 HarmBench ``standard'' behaviors and 250 XSTest safe prompts (non-\texttt{contrast\_} types); each intent yields a text and an image item (24pt black text on a 512$\times$512 white canvas, 40px padding). Total: 400 harmful $+$ 500 benign $=$ 900 items.
+
+\paragraph{Metrics.} \emph{Det-txt/Det-img}: detection recall per modality (denominator 200 each). \emph{ASR-txt/ASR-img}: end-to-end attack success. \emph{OvRef}: over-refusal on 500 benign items. \emph{ProtGap}: text ASR reduction minus image ASR reduction. All proportions carry 95\% Wilson CIs; paired tests (McNemar, bootstrap) are in \texttt{results/full\_run/protection\_gap\_tests.json}. All four model SHAs are pinned; the canonical run is \texttt{results/full\_run/}.
+
+\section{Results}
+\label{sec:results}
+
+\begin{table}[t]
+\centering
+\caption{Canonical run (\texttt{results/full\_run/}, 900 items). 95\% Wilson CIs in brackets.}
+\label{tab:main}
+\small
+\begin{tabular}{lccccc}
+\toprule
+Condition & Det-txt & Det-img & ASR-txt / img & OvRef & ProtGap \\
+\midrule
+Unguarded & --- & --- & 57.0\% / 60.5\% & --- & --- \\
+Llama-Guard-4 & \textbf{92.5} [88.0,\,95.4] & 82.0 [76.1,\,86.7] & 5.5 / 11.5 & \textbf{11.8} [9.3,\,14.9] & $+2.5$ \\
+LlamaGuard-3-Vision & 89.0 [83.9,\,92.6] & \textbf{100.0} [98.1,\,100] & 7.0 / \textbf{0.0} & 55.0 [50.6,\,59.3] & $-10.5$ \\
+ShieldGemma-2 & 0.0 [0.0,\,1.9] & 87.0 [81.6,\,91.0] & 57.0 / 10.5 & \textbf{4.6} [3.1,\,6.7] & $-50.0$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Three architectures, three profiles.} LG4 discriminates on both channels (92.5\% text, 82.0\% image) at the lowest over-refusal (11.8\%). LG3V reaches 100\% image detection but at 55\% over-refusal---100\% on the image channel (all 250 benign images blocked), 10\% on text. SG2, correctly loaded, is the best-calibrated image guard: 87.0\% image detection at 9.2\% image over-refusal, while returning safe on text-only input by construction (0.0\% text detection).
+
+\paragraph{On ``image-content classifier.''} SG2's 87\% detection of rendered text shows it \emph{reads} the text embedded in the image---it performs text-in-image understanding, not mere pixel-texture classification. ``Image-content classifier'' thus describes its \emph{input} (only the image) and \emph{policy training}, not an inability to read rendered text. This is load-bearing for Section~\ref{sec:carrier}: SG2 reads the harmful text \emph{inside} the image but never sees the \emph{carrier prompt paired with} it.
+
+\paragraph{ProtGap is an ordering, not a per-guard significance claim.} LG3V's $-10.5$pp gap reflects refuse-all-images; SG2's $-50.0$pp is mechanical (0\% text detection). Only LG4's gap reflects a guard attempting both channels, and its aggregate ASR-reduction ProtGap ($+2.5$pp) is \emph{not} significant (bootstrap CI $[-6.5,+11.5]$).
+
+\paragraph{The rigorous channel gap is LG4's paired detection, and it is significant.} On the 200 shared intents, 26 are blocked as text but not image versus 5 the other way ($\chi^2{=}12.9$, $p{=}3.3\times10^{-4}$; Newcombe CI on the gap $[-0.171,-0.040]$, excluding zero). Recovering semantic content from glyphs is an extra inference step---an architectural capability question, not a training-data-quantity one. Among discordant successful attacks, 19 succeed only via image versus 7 only via text (McNemar $p{=}0.031$). SG2's detection is reproducible: three independent runs each blocked 174/200 harmful and 23/500 benign (Appendix~\ref{app:sg2}); an earlier draft's ``weak, non-reproducible SG2'' was the \texttt{lm\_head} artifact, not the guard.
+
+\section{Adaptive Rendering Study}
+
+We render each intent four ways---original (24pt black on white), inverted, small font (14pt), and $15^\circ$ rotation---and measure LG4 image detection (\texttt{results/adaptive\_run/}). Detection spans only 6pp (78.5--84.5\%) and every 95\% CI overlaps the baseline: \textbf{LG4's image detection is statistically invariant to rendering}. Inverted text is detected slightly \emph{better} than baseline; the rotation (most likely to disrupt OCR) is lowest but indistinguishable. Whatever LG4 does to recover intent, it is not a surface property an attacker can perturb. (SG2 is omitted here: the adaptive run predates the SG2 load fix; its canonical detection is in Table~\ref{tab:main}.)
+
+\section{Rendering Parameter Sweep}
+
+We ask whether \emph{any} rendering configuration in a 7-dimensional space can evade LG4 while remaining readable to the target. An Optuna TPE sweep (seed 42, 20 probe trials) then validates the 6 lowest-detection configs on 200 items. Gaussian \texttt{noise\_sigma} is the only evasion driver (all configs reaching 0\% LG4 detection had $\sigma\geq14.85$). But every config that drove LG4 to $\sim$0\% also collapsed LLaVA's compliance to $\leq12.5\%$---far below a 40\% readability gate (Figure~\ref{fig:sweep}). \textbf{Random perturbation cannot selectively evade the guard}: the noise that blinds LG4 also blinds the target, because both encode images through vision-transformer patch embeddings that Gaussian noise degrades alike. A selective attack must be \emph{targeted}, which we turn to next.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.92\linewidth]{fig_sweep_tradeoff.png}
+  \caption{Left: Gaussian noise vs.\ LG4 detection across 20 probe trials---detection collapses below $\sigma\approx14.9$. Right: guard detection vs.\ unguarded ASR for the 6 validated configs; all sit below the 40\% readability gate, so none is a viable attack.}
+  \label{fig:sweep}
+\end{figure}
+
+\section{Universal Adversarial Perturbation Attacks}
+\label{sec:uap}
+
+We optimize a single perturbation $\delta$ (bounded by $\epsilon$) over a training batch and evaluate on a disjoint 50-item test set; settings in Appendix~\ref{app:uap}.
+
+\begin{table}[t]
+\centering
+\caption{UAP summary (test fooling; $n_{\text{train}}{=}n_{\text{test}}{=}50$).}
+\label{tab:uap}
+\small
+\begin{tabular}{llccccc}
+\toprule
+Guard & Architecture & Nat.\ bypass & $\epsilon{=}16$ & $\epsilon{=}32$ & Feature-space & Transfer in \\
+\midrule
+LG3V & dense, cross-attn & 0\% & \textbf{100\%} & --- & --- & --- \\
+SG2 & dense, SigLIP+Gemma3 & 10\% & 10--34\%$^\dagger$ & \textbf{52\%} & --- & --- \\
+LG4 & sparse MoE, early fusion & 6\% & 16\% & 22\% & \textbf{10\%} & 2\% (from LG3V) \\
+\bottomrule
+\end{tabular}
+\caption*{\footnotesize $^\dagger$SG2 at $\epsilon{=}16$ is run-to-run variable (unseeded PGD restarts); it does not reliably fool the guard at this budget.}
+\end{table}
+
+\paragraph{A robustness spectrum, not a dense/sparse binary.} LG3V (unsafe logit $\sim$18) is fully broken at $\epsilon{=}16$. SG2 (dangerous-content logit $\sim$38, near-saturated) resists $\epsilon{=}16$ and half-breaks at $\epsilon{=}32$; the $\epsilon{=}32$ success shows its $\epsilon{=}16$ resistance is a budget effect, not a dead-gradient artifact. LG4 resists both. Susceptibility tracks \emph{decision confidence and gradient architecture}, not merely dense vs.\ sparse.
+
+\paragraph{LG4's two independent defenses.} A feature-space attack that bypasses the MoE (loss in LG4's ViT encoder output space, pushing patch embeddings toward blank-image embeddings) converges yet fools only 10\%---\emph{lower} than standard UAP's 16\% despite clean gradients. This pins the cause to a \emph{backward-path} defense (sparse routing $\Rightarrow$ incoherent pixel gradients) and a \emph{forward-path} defense (the carrier text establishes a prior strong enough to dominate even when image features are pushed toward blank). Section~\ref{sec:carrier} shows the second wall is also the vulnerability. Transfer fails: the 100\%-effective LG3V perturbation, mapped into LG4's input space, fools only 2\%.
+
+\section{Carrier Prompt Sweep: A Text-Context Attack, and Image-Content Immunity}
+\label{sec:carrier}
+
+The carrier prompt---the text paired with the rendered image---is the simplest attack surface, and the only one that breaks LG4 outright: it pushes on the text context that dominates LG4's classification. We evaluate 18 framings across six categories on the 200 behaviors $\times$ image modality; the image is identical across carriers, so only the paired sentence changes.
+
+\begin{table}[t]
+\centering
+\caption{Carrier sweep by category---image-channel detection (mean [min--max]).}
+\label{tab:carrier}
+\small
+\begin{tabular}{lccc}
+\toprule
+Category ($n$) & LG4 Det-img & LG3V Det-img & SG2 Det-img \\
+\midrule
+Baseline (2) & 73 [64--82] & 50 [0--100] & 87 (invariant) \\
+Fictional (4) & \textbf{20} [6--54] & 35 [0--100] & 87 (invariant) \\
+Theatrical (4) & 30 [6--54] & \textbf{2} [0--8] & 87 (invariant) \\
+Transcription (3) & 90 [84--97] & 68 [4--100] & 87 (invariant) \\
+Academic (3) & 40 [30--52] & 27 [0--82] & 87 (invariant) \\
+Other (2) & 43 [32--55] & 0 [0--0] & 87 (invariant) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{LG4's blind spot is category-driven; LG3V's is phrasing-driven.} The worst carrier (``novel passage'' fiction) takes LG4 from 82\% to \textbf{6\%} and lifts image ASR to 78\%. This is the text-context dominance the feature-space UAP exposed, from the other side: a single framing word manufactures ``safe'' with no perturbation. LG3V is a near-binary switch thrown by phrasing (12/18 framings near 0\%, 4 near 100\%); theatrical is the one category that collapses it robustly ($\leq$8\%). The two guards do not even fail in the same shape.
+
+\paragraph{The carrier is a text-context attack---so an image-content guard is immune by construction.} SG2 never receives the carrier prompt; its \texttt{classify()} passes only the image. Since the image is identical across carriers, SG2's verdict is identical across all 18 framings---the flat 87\% column in Table~\ref{tab:carrier} is a structural fact, not a measurement. The carrier attack works only against guards that ingest the carrier prompt; a guard that never receives it---even one that reads the harmful text rendered \emph{inside} the image, as SG2's 87\% shows it does---cannot be steered by it.
+
+\paragraph{Consequence---a carrier-robust ensemble (the central result).} Blocking if either LG4 or SG2 fires makes image detection the union of LG4's carrier-dependent set with SG2's fixed 87\% set; it cannot drop below 87\% under any carrier. Measured across all 18 framings, LG4\,\ens\,SG2 image detection stays 87--100\% while LG4 alone swings 6--97\% (Figure~\ref{fig:robustness}, left):
+
+\begin{center}\small
+\begin{tabular}{lcc}
+\toprule
+ & LG4 alone & LG4\,\ens\,SG2 \\
+\midrule
+Best carrier (transcription) & 97\% & 100\% \\
+Worst carrier (fiction ``novel passage'') & \textbf{6\%} & \textbf{88\%} \\
+Worst case across all 18 carriers & \textbf{6.0\%} & \textbf{87.0\%} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Cross-modal composition beats same-modal composition precisely because the blind spots are architecture-specific: an image-content guard's blind spot (the text channel) is a text-guard's strength, and vice versa.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\linewidth]{fig_carrier_robustness.png}
+  \caption{Left: image detection across the 18 carriers (sorted by LG4-alone detection). LG4 collapses to 6\% under fiction framing; SG2 is a flat carrier-invariant line; LG4\,\ens\,SG2 stays $\geq$87\% everywhere. Right: coverage--usability operating points---LG4\,\ens\,SG2 sits in the deployable region, LG4\,\ens\,LG3V is pinned at refuse-all-images over-refusal.}
+  \label{fig:robustness}
+\end{figure}
+
+\section{Ensembles: Cross-Modal Composition Is the Cheap Fix}
+\label{sec:ensemble}
+
+\begin{table}[t]
+\centering
+\caption{Ensemble operating points (900 items). \texttt{results/full\_run/ensemble.json}.}
+\label{tab:ensemble}
+\small
+\begin{tabular}{lccccc}
+\toprule
+Configuration & Det-txt & Det-img & ASR-txt & ASR-img & OvRef \\
+\midrule
+LG4 alone & 92.5 & 82.0 & 5.5 & 11.5 & 11.8 \\
+\textbf{LG4\,\ens\,SG2} (text$\to$LG4, image$\to$LG4$\cup$SG2) & 92.5 & \textbf{97.0} & 5.5 & \textbf{2.5} & \textbf{14.8} \\
+LG4\,\ens\,LG3V (block on either) & 96.0 & 100.0 & 3.0 & 0.0 & 56.4 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{LG4\,\ens\,SG2 is a cheap, carrier-robust ensemble.} It raises image detection to $97.0\%$ $[93.6,98.6]$ and cuts image ASR to 2.5\% for a $+3$pp aggregate over-refusal cost (image-channel over-refusal 22.4\%). The gain is paired-significant: SG2 rescues \textbf{30 of the 36 image items LG4 misses (83\%)} and loses none (McNemar exact $p{=}1.9\times10^{-9}$). SG2 adds nothing on the text channel---complementary by design---and is carrier-robust (Section~\ref{sec:carrier}). The residual cost is the 22.4\% image over-refusal, the honest price of coverage, still far from LG3V's refuse-all regime.
+
+\paragraph{LG4\,\ens\,LG3V is not deployable}: 0\% image ASR but 56.4\% over-refusal, and two text-reading guards share the carrier attack surface---the cost of composing \emph{within} a modality.
+
+\paragraph{Attacking the ensemble itself.} A black-box adversary cannot defeat LG4\,\ens\,SG2 on the image channel: the carrier collapses LG4 but leaves SG2's 87\% floor untouched, and rendering noise strong enough to move SG2 destroys readability. Eroding the ensemble requires a \emph{strictly stronger} adversary---white-box access to SG2---to pair a fiction carrier with a UAP that degrades SG2 (52\% at $\epsilon{=}32$). Composition thus raises the attacker's cost floor from ``types a sentence'' to ``has SG2's weights and runs PGD.''
+
+The lesson is not ``just ensemble'' but ``ensemble across reasoning modalities'': a text-intent guard and an image-content guard have complementary blind spots, so their composition covers each other's gaps at modest cost; two text-context guards share both a carrier weakness and an over-refusal toll.
+
+\section{Cross-VLM Replication: Qwen2-VL-7B}
+\label{sec:crossvlm}
+
+Guard detection is a property of the guard's forward pass on the (image, carrier) input, not of the downstream VLM, so it must be identical across targets---and it is (LG4 82.0/92.5; LG3V 100.0/89.0 image/text). The informative cross-VLM quantity is the \emph{unguarded} surface: unguarded text ASR is 57.0\% on LLaVA versus 9.0\% on Qwen2-VL (better safety-aligned), while unguarded image ASR is closer (60.5\% vs 54.0\%) because image-rendered intent partially circumvents both VLMs' text-based safety training. Guard gaps therefore matter most where the underlying VLM is weakly aligned and the guard is the primary defense.
+
+\section{Discussion}
+
+The three guards span a design space from pure intent classification to pure image-content classification, and their profiles follow from where each spends attention: LG4 assesses joint intent (small paired-significant image gap); LG3V's broad visual sensitivity closes the image gap but drives high over-refusal; SG2 scores only the image (0\% text detection) but, correctly loaded, reads rendered text well. The carrier reveals the deepest structure: because it operates through the text context, a guard that ignores the carrier is immune, and composing such a guard with a text-intent guard yields coverage no single guard---and no same-modality ensemble---achieves. LG4\,\ens\,SG2 is the deployable operating point (92.5\% text / 97\% image detection, 14.8\% over-refusal, carrier-robust).
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.9\linewidth]{fig_guard_contrast.png}
+  \caption{Architectural contrast: LG4 balanced (image-weaker), LG3V refuse-all-images, SG2 text-channel-blind but strong on image---and the LG4\,\ens\,SG2 pairing composes across these modalities.}
+  \label{fig:contrast}
+\end{figure}
+
+\paragraph{Limitations.}
+(i) The cross-modal-ensemble result depends on the image guard actually reading rendered text: SG2's carrier-\emph{immunity} is general, but the coverage \emph{benefit} requires strong text-in-image detection; a purely texture-based content classifier would give a weaker pairing, and we evaluate one image-content guard.
+(ii) The ensemble's image-channel over-refusal (22.4\%) is a real, deployment-dependent cost.
+(iii) Single seed and one behavior subset (\texttt{split\_seed}=42); we do not report split-variance.
+(iv) WildGuard-as-judge adds ASR measurement noise.
+(v) Detection is replicated across two VLMs; the carrier/UAP studies use LLaVA only (the carrier effect is expected VLM-independent but not verified).
+(vi) UAP is white-box with unseeded PGD (SG2 $\epsilon{=}16$ variable 10--34\%); black-box transfer is not evaluated.
+(vii) Three guards span but do not exhaust the architecture space.
+
+\section{Conclusion}
+
+Across three guards and four attack axes, each guard's failures are fixed by its architecture, not the channel under attack---and because they are architectural, they are \emph{complementary}. The cheapest attack, the carrier prompt, is the proof: it is a text-context attack that collapses whichever guard reads the text (fiction blinds LG4, theatre blinds LG3V), yet an image-content guard that reads the text inside the image but never sees the carrier prompt is immune entirely. Composing a text-intent guard with an image-content guard does more than add coverage: the image guard covers exactly the carrier blind spot the text guard cannot defend, keeping image detection $\geq$87\% under every framing where LG4 alone falls to 6\%, at a modest over-refusal cost---while composing two guards of the \emph{same} modality inherits their shared attack surface and stacks their false positives to 56\%. Robust multimodal safety is therefore not a matter of a better single guard, nor of ensembling arbitrarily, but of composing guards whose reasoning modalities differ. MSBench is the instrument for measuring those blind spots, checking a composition covers rather than shares them, and verifying the numbers reproduce.
+
+\section*{Ethics and Responsible Disclosure}
+This work characterizes failure modes in deployed safety guards to make them measurable and fixable. All attacks use public HarmBench behaviors; we introduce no new harmful content and commit no model-generated harmful outputs---only aggregate metrics and per-item verdicts. The techniques studied are already known and trivially available; the contribution is systematic measurement, a mechanistic account of \emph{why} architectures fail, and a concrete defensive composition. We judge the net effect to favor defenders.
+
+\section*{Reproducibility and Artifacts}
+Code, pinned model revisions, committed guard verdicts, and all metrics/figures are released at \url{https://github.com/PatrickKollman/Multimodal-Safeguard-Bench}. Figures regenerate from committed JSON without a GPU.
+
+\bibliographystyle{plainnat}
+\bibliography{references}
+
+\appendix
+\section{UAP Implementation Details}
+\label{app:uap}
+All perturbations are universal (one $\delta$ per guard, trained on a batch, evaluated on a disjoint 50-item set), bounded in image pixel space at $\epsilon$, and maintained in each model's \texttt{pixel\_values} space with the model's own processor. \textbf{SG2 (dangerous\_content):} 3 restarts $\times$ 100 PGD iters $\times$ batch 4; $\epsilon\in\{16,32\}/255$; $\delta$ in SigLIP range $[-1,1]$ with $\epsilon_{pv}=2\epsilon_{img}$; 4-bit NF4 with gradient checkpointing; loss on $\texttt{probabilities}[:,0]$; PGD restarts unseeded, so $\epsilon{=}16$ fooling is variable (10--34\%). \textbf{LG3V/LG4:} autoregressive; loss on the ``unsafe''-token logit at the final input position, with the emitted prefix token handled so the logit lands on the classification position; LG3V 3$\times$75 iters, $\epsilon{=}16$; LG4 $\epsilon{=}16$ (75 iters) and $\epsilon{=}32$ (200 iters $\times$ 3 restarts) with a single-tile 336$\times$336 workaround to fit the backward pass in 24\,GB. \textbf{Feature-space UAP on LG4:} loss in the ViT encoder output space (patch embeddings $[1,144,4096]$), MSE to the mean-pooled embedding of 20 blank white images, no MoE in the backward path; harmful$\leftrightarrow$benign centroid cosine similarity 0.6513. \textbf{Transfer:} the LG3V $\delta$ was mapped from LG3V's tile-normalized \texttt{pixel\_values} space to image space (per-channel std $\approx[0.269,0.261,0.276]$, averaged over 4 tiles), resized to 336$\times$336, and applied to LG4 inputs.
+
+\section{ShieldGemma-2 Loading (Reproducibility Pitfall)}
+\label{app:sg2}
+\texttt{ShieldGemma2ForImageClassification.from\_pretrained} (transformers 4.57) silently random-initializes the inner Gemma-3 \texttt{lm\_head}: it is tied to the token embeddings and absent from the checkpoint, the outer wrapper's \texttt{\_tied\_weights\_keys} is \texttt{None}, and the wrapper's \texttt{tie\_weights()} delegates to a submodule that does not repair the head used in \texttt{forward()}. The result is a randomly-initialized classification head whose verdicts change on every load---we observed image detection swinging 22.5--95.5\% across five identical-configuration runs while the intent-classifier guards were bit-identical. The fix is \texttt{model.model.tie\_weights()} after loading; detection then becomes deterministic (three runs: 174/200 harmful, 23/500 benign each). Separately, the violated probability is \texttt{probabilities[:,0]} (the ``Yes'' token), not \texttt{[:,1]}. Any benchmark of ShieldGemma-2 on rendered text should verify both. All SG2 numbers here use the corrected load.
+
+\end{document}
