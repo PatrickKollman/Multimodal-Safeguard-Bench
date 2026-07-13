@@ -302,7 +302,9 @@ def main(args: argparse.Namespace) -> None:
     run_id = args.name if args.name else datetime.now().strftime("%Y%m%d_%H%M%S")
     run_dir = Path(cfg["eval"]["output_dir"]) / run_id
     run_dir.mkdir(parents=True, exist_ok=True)
-    shutil.copy(args.config, run_dir / "config.yaml")
+    src, dst = Path(args.config).resolve(), (run_dir / "config.yaml").resolve()
+    if src != dst:
+        shutil.copy(args.config, run_dir / "config.yaml")
     log.info(f"Run ID: {run_id}  →  {run_dir}  [phase: {args.phase}]")
 
     active_guard_names = set(args.guards) if args.guards else {g["name"] for g in cfg["guards"]}

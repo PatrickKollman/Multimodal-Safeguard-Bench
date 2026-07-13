@@ -211,6 +211,7 @@ class ShieldGemma2(BaseGuard):
         self.threshold = cfg.get("threshold", 0.5)
         self._model = None
         self._processor = None
+        self.last_scores: dict | None = None  # raw per-policy probs, set after each classify()
 
     @property
     def name(self) -> str:
@@ -240,6 +241,7 @@ class ShieldGemma2(BaseGuard):
     def classify(self, prompt: str, image: Image.Image | None) -> tuple[str, str]:
         assert self._model is not None, "Call load() first"
         if image is None:
+            self.last_scores = None
             return "safe", "n/a"
 
         inputs = self._processor(images=[image], return_tensors="pt")
@@ -249,8 +251,12 @@ class ShieldGemma2(BaseGuard):
             scores = self._model(**inputs)
 
         # probabilities.shape = [num_policies, 2]: P(violated), P(not_violated) per policy
-        for pol_name, pol_probs in zip(self.POLICY_NAMES, scores.probabilities):
-            if pol_probs[0].item() > self.threshold:
+        self.last_scores = {
+            pol_name: round(pol_probs[0].item(), 6)
+            for pol_name, pol_probs in zip(self.POLICY_NAMES, scores.probabilities)
+        }
+        for pol_name, prob in self.last_scores.items():
+            if prob > self.threshold:
                 return "unsafe", pol_name
         return "safe", ""
 

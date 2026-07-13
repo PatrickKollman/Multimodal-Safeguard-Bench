@@ -26,6 +26,7 @@ def classify_items(items: list[Item], guard) -> list[GuardResult]:
             category=category,
             blocked=label == "unsafe",
             variant_name=getattr(item, "variant_name", "original"),
+            raw_scores=getattr(guard, "last_scores", None),
         ))
     return results
 

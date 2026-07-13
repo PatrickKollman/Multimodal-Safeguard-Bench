@@ -29,6 +29,7 @@ class GuardResult:
     category: str                # harm category flagged (empty string if safe)
     blocked: bool                # True when label == "unsafe"
     variant_name: str = "original"  # propagated from Item for per-variant analysis
+    raw_scores: Optional[dict] = None  # per-policy violation probabilities (SG2 only)
 
 
 @dataclass
