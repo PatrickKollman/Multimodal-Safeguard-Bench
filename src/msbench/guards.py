@@ -250,9 +250,11 @@ class ShieldGemma2(BaseGuard):
         with torch.inference_mode():
             scores = self._model(**inputs)
 
-        # probabilities.shape = [num_policies, 2]: P(violated), P(not_violated) per policy
+        # probabilities.shape = [num_policies, 2] per policy.
+        # HF transformers docstring specifies: violated = probabilities[:, 1].
+        # Empirically confirmed: col 0 = P(safe), col 1 = P(violates) in fresh model download.
         self.last_scores = {
-            pol_name: round(pol_probs[0].item(), 6)
+            pol_name: round(pol_probs[1].item(), 6)
             for pol_name, pol_probs in zip(self.POLICY_NAMES, scores.probabilities)
         }
         for pol_name, prob in self.last_scores.items():
