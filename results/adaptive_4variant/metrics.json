@@ -1,0 +1,18 @@
+{
+  "unguarded": {
+    "asr_text": 0.3333333333333333,
+    "asr_image": 0.4666666666666667,
+    "asr_overall": 0.44
+  },
+  "llama_guard_4": {
+    "detection_recall_text": 1.0,
+    "detection_recall_image": 0.9666666666666667,
+    "asr_text": 0.0,
+    "asr_image": 0.008333333333333333,
+    "asr_overall": 0.006666666666666667,
+    "over_refusal": 0.0,
+    "text_asr_reduction": 0.3333333333333333,
+    "image_asr_reduction": 0.4583333333333333,
+    "protection_gap": -0.125
+  }
+}
