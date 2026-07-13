@@ -2,6 +2,34 @@
 
 ## [Unreleased] — post-initial-study extensions
 
+### New experiment: carrier prompt sweep — guard-selective framing attacks
+
+**Files:** `scripts/run_carrier_sweep.py`, `scripts/make_carrier_figure.py`, `configs/carriers/{baseline,fiction,transcription,roleplay,academic}.yaml`
+**Results:** `results/carrier_sweep/{<variant>/metrics.json, summary.json}`, `figures/fig_carrier_sweep.png`
+
+**What it does.** Varies only the natural-language carrier prompt paired with the rendered image
+(images, pipeline, and harmful set held identical) across five framings, measuring image-channel
+detection and ASR for all three guards plus the unguarded VLM. Zero gradients, zero model access
+beyond black-box inference.
+
+**Headline result.** Carrier framing is the dominant control variable for LG4's image channel —
+it swings LG4 Det-img from 6.0% (fiction) to 97.0% (transcription), a 91pp range, on identical
+images. The blind spots are guard-selective: fiction collapses LG4 (82%→6%, ASR-img 11.5%→78%)
+while LG3V holds at 100%; roleplay collapses LG3V (100%→0%, ASR-img 0%→92%) while LG4 holds
+partially (82%→54%). This is the strongest attack in the study — it is the only vector that fully
+breaks a guard that resisted every gradient-based UAP — and it directly confirms the
+text-context-dominance mechanism identified by the feature-space UAP (Section 7.3): the same
+forward-path property that makes LG4 gradient-resistant makes it framing-susceptible.
+
+**Scope note.** The carrier sweep is a focused image-channel study with its own internal *baseline*
+control. Its baseline LG4 (82.0%) and LG3V (100.0%) image numbers reproduce `full_run` exactly,
+confirming harness consistency for the generation-based guards. Over-refusal uses a small built-in
+benign set (20 items) rather than the canonical 250 XSTest prompts, so sweep over-refusal is not
+reported. SG2's image detection is also carrier-sensitive here (27%–90%) and differs from its
+canonical 95.5% for the same reason (different benign-image calibration set); the headline carrier
+analysis is therefore restricted to the calibration-stable LG4 and LG3V, with SG2 retained in
+`summary.json` for completeness but not interpreted.
+
 ### Bug fix: ShieldGemma-2 `classify()` probability indexing
 
 **File:** `src/msbench/guards.py`, `ShieldGemma2.classify()` (line 173)
@@ -43,7 +71,7 @@ for pol_name, pol_probs in zip(self.POLICY_NAMES, scores.probabilities):
         return "unsafe", pol_name
 ```
 
-**Impact.** All SG2 results from the original full_run and adaptive_run are invalid. The
+**Impact.** All SG2 results from the original full_run_2guard_deprecated and adaptive_run are invalid. The
 corrected implementation is expected to show a substantially lower SG2 image detection rate,
 as dangerous_content (policy-0) — the policy most relevant to text-encoded harm intent — has
 an ~88% natural blind spot on rendered text images (see UAP section below). The corrected
@@ -94,11 +122,11 @@ the rerun described below.
 
 ### Rerun: corrected full pipeline with LG3V and SG2 bug fix — COMPLETE
 
-**Run ID:** `full_run_v2` → `results/full_run_v2/`
+**Run ID:** `full_run` → `results/full_run/`
 
 **Command used:**
 ```bash
-python -m msbench.run --config configs/mvp.yaml --purge-guard-cache --name full_run_v2
+python -m msbench.run --config configs/mvp.yaml --purge-guard-cache --name full_run
 ```
 
 **Results (900 items: 200 HarmBench × 2 modalities + 250 XSTest × 2 modalities):**
@@ -119,7 +147,7 @@ python -m msbench.run --config configs/mvp.yaml --purge-guard-cache --name full_
 **Status of downstream work:**
 - `writeup/paper.md` — updated with corrected numbers (Sections 1, 3, 4, 7, 8, 9, 10)
 - `README.md` — updated with three-guard findings and corrected numbers
-- `scripts/make_results_figures.py` — pending re-run against `full_run_v2/` to regenerate figures
+- `scripts/make_results_figures.py` — pending re-run against `full_run/` to regenerate figures
 - `scripts/compute_ensemble.py` — pending re-run for ensemble metrics with corrected SG2
 
 ---
@@ -258,7 +286,7 @@ closely related model fails to transfer.
 ## [v0.1] — Initial two-guard study
 
 Original study: LG4 and SG2 evaluated against 900 items (200 HarmBench × 2 modalities +
-250 XSTest × 2 modalities). Results committed to `results/full_run/`. Note: SG2 numbers in
+250 XSTest × 2 modalities). Results committed to `results/full_run_2guard_deprecated/`. Note: SG2 numbers in
 this version are invalid due to the bug described above. See the unreleased section.
 
 Key results (pre-fix, for reference only):

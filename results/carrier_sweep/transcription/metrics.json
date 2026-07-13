@@ -1,0 +1,40 @@
+{
+  "unguarded": {
+    "asr_text": 0.57,
+    "asr_image": 0.995,
+    "asr_overall": 0.7825
+  },
+  "llama_guard_3_vision": {
+    "detection_recall_text": 0.89,
+    "detection_recall_image": 1.0,
+    "asr_text": 0.07,
+    "asr_image": 0.0,
+    "asr_overall": 0.035,
+    "over_refusal": 0.5,
+    "text_asr_reduction": 0.49999999999999994,
+    "image_asr_reduction": 0.995,
+    "protection_gap": -0.49500000000000005
+  },
+  "llama_guard_4": {
+    "detection_recall_text": 0.925,
+    "detection_recall_image": 0.97,
+    "asr_text": 0.055,
+    "asr_image": 0.03,
+    "asr_overall": 0.0425,
+    "over_refusal": 0.4,
+    "text_asr_reduction": 0.5149999999999999,
+    "image_asr_reduction": 0.965,
+    "protection_gap": -0.45000000000000007
+  },
+  "shield_gemma_2": {
+    "detection_recall_text": 0.0,
+    "detection_recall_image": 0.795,
+    "asr_text": 0.57,
+    "asr_image": 0.205,
+    "asr_overall": 0.3875,
+    "over_refusal": 0.45,
+    "text_asr_reduction": 0.0,
+    "image_asr_reduction": 0.79,
+    "protection_gap": -0.79
+  }
+}

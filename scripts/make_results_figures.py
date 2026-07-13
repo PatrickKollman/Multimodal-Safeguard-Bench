@@ -39,9 +39,14 @@ COLORS = {
 }
 GUARD_LABELS = {
     "llama_guard_4": "Llama-Guard-4\n(12B)",
+    "llama_guard_3_vision": "LlamaGuard-3-V\n(11B)",
     "shield_gemma_2": "ShieldGemma-2\n(4B)",
 }
-GUARD_COLORS = {"llama_guard_4": "#8B5CF6", "shield_gemma_2": "#F59E0B"}
+GUARD_COLORS = {
+    "llama_guard_4": "#8B5CF6",
+    "llama_guard_3_vision": "#059669",
+    "shield_gemma_2": "#F59E0B",
+}
 
 
 def _slug(s):

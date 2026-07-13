@@ -399,7 +399,7 @@ def cli() -> None:
     parser.add_argument("--limit", type=int, default=None, metavar="N",
                         help="Cap total items to N for fast debug iterations")
     parser.add_argument("--name", default=None, metavar="NAME",
-                        help="Run directory name (e.g. full_run_v2). Defaults to timestamp.")
+                        help="Run directory name (e.g. full_run). Defaults to timestamp.")
     parser.add_argument("--adaptive", action="store_true",
                         help=(
                             "Expand image-modality harmful items into 4 rendering variants "

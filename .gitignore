@@ -36,7 +36,7 @@ weights/
 *.gguf
 .cache/
 huggingface/
-# UAP delta tensors are small research artifacts (~3 MB each), not model weights
+# UAP delta tensors are committed research artifacts (34 KB–14 MB; 36 MB total), not model weights
 !results/**/*.pt
 
 # --- Data: pull/render from source via loaders; do not commit corpora ---
@@ -49,9 +49,9 @@ datasets/
 # Raw model outputs may contain harmful text — keep them local.
 # Per-run JSONL files (guard outputs, generations, judge outputs) are excluded.
 # OK to commit: results/{run_id}/metrics.json, results/{run_id}/config.yaml, figures.
-results/*/guard_*.jsonl
-results/*/gen_*.jsonl
-results/*/judge_*.jsonl
+results/**/guard_*.jsonl
+results/**/gen_*.jsonl
+results/**/judge_*.jsonl
 results/raw/
 **/raw_generations*
 *.log
