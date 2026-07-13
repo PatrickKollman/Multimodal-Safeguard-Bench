@@ -344,6 +344,10 @@ def main():
             torch_dtype=torch.bfloat16,
             device_map="auto",
         )
+    # Re-tie the Gemma3 lm_head: from_pretrained leaves it randomly initialized
+    # (see src/msbench/guards.py). Without this the classification logits are random
+    # and the UAP would optimize against a meaningless decision boundary.
+    model.model.tie_weights()
     model.eval()
     model.config.use_cache = False
 

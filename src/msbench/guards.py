@@ -230,6 +230,12 @@ class ShieldGemma2(BaseGuard):
             torch_dtype=self.dtype,
             device_map=self.device,
         )
+        # ShieldGemma2ForImageClassification.tie_weights() delegates to the wrong
+        # submodule, so from_pretrained leaves the Gemma3 lm_head randomly initialized
+        # (it is tied to the embeddings and absent from the checkpoint). Without this,
+        # the classification logits are random and change on every load. Re-tie on the
+        # inner Gemma3 model to bind lm_head to the loaded input embeddings.
+        self._model.model.tie_weights()
         self._model.eval()
 
     def unload(self) -> None:
@@ -250,11 +256,12 @@ class ShieldGemma2(BaseGuard):
         with torch.inference_mode():
             scores = self._model(**inputs)
 
-        # probabilities.shape = [num_policies, 2] per policy.
-        # HF transformers docstring specifies: violated = probabilities[:, 1].
-        # Empirically confirmed: col 0 = P(safe), col 1 = P(violates) in fresh model download.
+        # scores.probabilities has shape [num_policies, 2] = [P(Yes), P(No)] per policy.
+        # forward() builds logits[..., [yes_token, no_token]], so column 0 is P("Yes"),
+        # which means the policy IS violated. (The transformers docstring's
+        # "violated = probabilities[:, 1]" is erroneous; index 0 is the violated prob.)
         self.last_scores = {
-            pol_name: round(pol_probs[1].item(), 6)
+            pol_name: round(pol_probs[0].item(), 6)
             for pol_name, pol_probs in zip(self.POLICY_NAMES, scores.probabilities)
         }
         for pol_name, prob in self.last_scores.items():
