@@ -67,7 +67,7 @@ def load_metrics(dirs):
         if merged["unguarded"] is None:
             merged["unguarded"] = m.get("unguarded")
         for g, s in m.items():
-            if g != "unguarded":
+            if g != "unguarded" and isinstance(s, dict) and "detection_recall_text" in s:
                 merged["guards"][g] = s
     return merged
 

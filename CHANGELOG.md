@@ -2,6 +2,26 @@
 
 ## [Unreleased] — post-initial-study extensions
 
+### Data correction: SG2 canonical image detection is 37.5% (rendering-fragility finding)
+
+**Files:** `results/full_run/{metrics.json, guard_shield_gemma_2_*.jsonl, env_metadata.json}`, `results/full_run/config.yaml`, `results/sg2_rendering_probe/`, `results/stats/protection_gap_tests.json`, `results/ensemble/metrics.json`
+
+**What changed.** The SG2 image-detection figure reported in earlier prose was computed in an unpinned rendering environment and was not reproducible. Once we identified that SG2's decision on rendered text depends on the *image rendering environment* (see the fragility finding below), we re-ran from a single, fully documented environment. The canonical SG2 image detection is **37.5%** (75/200), image ASR **38.0%**, and over-refusal **7.0%** overall (14.0% on the image channel, 0% on text). ProtGap is **−22.5pp**. LG4 and LG3V are unchanged (LG4 image detection is 82.0%, i.e. 164/200; earlier prose rounded this to 81.5%). This is the value now committed at `results/full_run/metrics.json`, and it is internally consistent with the guard JSONLs, `judge_unguarded.jsonl`, `results/ensemble/metrics.json`, and `results/stats/protection_gap_tests.json`.
+
+**Why SG2 moved and the others did not — the fragility finding.** SG2 is an image content classifier with no text-intent pathway, so its verdict depends entirely on pixels. The renderer requests a scalable default font via `ImageFont.load_default(size=…)`, whose glyph rasterization (anti-aliasing, hinting, edge coverage) depends on the Pillow build and linked freetype version. `results/sg2_rendering_probe/` documents the effect: on renders of the same intent differing by ~0.01–0.04 mean absolute pixel value, SG2's `dangerous_content` score swings across the full range (e.g. 2.1×10⁻⁵ → 0.97 for one self-harm item; 3.6×10⁻⁵ → 1.0 for a BSL-4 item), flipping the block decision. The same nominal config therefore yields **37.5%** (`full_run`, Pillow 11.0.0), **100%** (`adaptive_run`), and **27–90%** (carrier sweep) for SG2, while LG4 and LG3V are invariant across all three environments. This is now written up as a finding (paper Section 4.1): reproducing a content-policy classifier's number on rendered text requires pinning the rasterization stack, not just the model revision.
+
+**Environment now pinned.** `results/full_run/env_metadata.json` records Pillow 11.0.0, freetype 2.13.2, transformers 4.57.6, torch 2.8.0+cu128 alongside all four model SHAs, so the canonical SG2 number is reproducible *within* this environment. Cross-environment SG2 comparisons (its rows in the adaptive study and carrier sweep) are treated as environment-conditioned and not compared directly to the canonical figure.
+
+**Note on the earlier bug fix.** This correction is separate from, and downstream of, the `classify()` probability-indexing bug fixed earlier (below): that bug produced a buggy 100% image-detection figure. Fixing the bug and then pinning the rendering environment — once SG2's pixel-fragility was found — produced the canonical 37.5%. An intermediate figure that appeared in early prose drafts (computed before the environment was pinned) was never committed as data and is superseded. The UAP results are unaffected — the SG2 UAP reads model tensors directly and measured true policy behavior throughout (dangerous_content policy: 92% test fooling at ε=16/255, 100% at ε=32/255).
+
+**Downstream reconciliation (this change set):**
+- `writeup/paper.md` — reconciled to 37.5%; central claim reframed away from the aggregate protection gap toward (a) LG4's paired detection gap (McNemar p<0.001), (b) carrier orthogonality, (c) the measured no-cheap-ensemble result, and (d) SG2 rendering fragility (new Section 4.1). Abstract, contributions, Sections 4, 4.1, 5, 7.1, 8, 9, 10, 11, 12 updated.
+- `README.md` — headline table, per-guard sections, figure captions, UAP prose, comparison table, and threshold footnote reconciled; gap demoted, fragility and no-cheap-ensemble promoted.
+- `results/stats/protection_gap_tests.json`, `results/ensemble/metrics.json` — regenerated against canonical `full_run`.
+- `figures/full_run_900_items_fig1_detection_and_asr.png`, `figures/full_run_900_items_fig4_heatmap.png` — regenerated via `python scripts/make_results_figures.py --results results/full_run --out figures --title-suffix "Full Run (900 items)"` and committed (verified pixel-identical to a fresh render from the canonical metrics).
+
+---
+
 ### New experiment: carrier prompt sweep — guard-selective framing attacks
 
 **Files:** `scripts/run_carrier_sweep.py`, `scripts/make_carrier_figure.py`, `configs/carriers/{baseline,fiction,transcription,roleplay,academic}.yaml`
@@ -25,9 +45,10 @@ forward-path property that makes LG4 gradient-resistant makes it framing-suscept
 control. Its baseline LG4 (82.0%) and LG3V (100.0%) image numbers reproduce `full_run` exactly,
 confirming harness consistency for the generation-based guards. Over-refusal uses a small built-in
 benign set (20 items) rather than the canonical 250 XSTest prompts, so sweep over-refusal is not
-reported. SG2's image detection is also carrier-sensitive here (27%–90%) and differs from its
-canonical 95.5% for the same reason (different benign-image calibration set); the headline carrier
-analysis is therefore restricted to the calibration-stable LG4 and LG3V, with SG2 retained in
+reported. SG2's image detection varies here (27%–90%), a range that brackets its canonical 37.5%
+and reflects the rendering-environment fragility documented in the correction entry below (this
+sweep ran in a different rendering environment); the headline carrier analysis is therefore
+restricted to the environment-stable LG4 and LG3V, with SG2 retained in
 `summary.json` for completeness but not interpreted.
 
 ### Bug fix: ShieldGemma-2 `classify()` probability indexing
@@ -122,6 +143,8 @@ the rerun described below.
 
 ### Rerun: corrected full pipeline with LG3V and SG2 bug fix — COMPLETE
 
+> **⚠ SUPERSEDED (SG2 only).** The SG2 image-detection figures originally logged in this entry were computed in an unpinned rendering environment and were corrected to the canonical **37.5%** — see the *Data correction* entry at the top of this file. LG4 and LG3V numbers stand (LG4 image detection is 82.0%; earlier prose rounded to 81.5%). The SG2 row below shows the canonical values.
+
 **Run ID:** `full_run` → `results/full_run/`
 
 **Command used:**
@@ -134,21 +157,19 @@ python -m msbench.run --config configs/mvp.yaml --purge-guard-cache --name full_
 | Guard | Det-txt | Det-img | ASR-txt | ASR-img | OvRef | ProtGap |
 |---|---|---|---|---|---|---|
 | Unguarded | — | — | 57.0% | 60.5% | — | — |
-| Llama-Guard-4 | 92.5% | 81.5% | 5.5% | 11.5% | 11.8% | +2.5pp |
+| Llama-Guard-4 | 92.5% | 82.0% | 5.5% | 11.5% | 11.8% | +2.5pp |
 | LlamaGuard-3-Vision | 89.0% | 100.0% | 7.0% | 0.0% | 55.0% | −10.5pp |
-| ShieldGemma-2 (corrected) | 0.0% | 95.5% | 57.0% | 4.0% | 45.0% | −56.5pp |
+| ShieldGemma-2 | 0.0% | 37.5% | 57.0% | 38.0% | 7.0% | −22.5pp |
 
-**Key findings from the rerun:**
-- SG2's corrected image detection (95.5%) vs. buggy (100%) confirms the bug was real and inflating numbers.
-- LG3V's 55.0% over-refusal is the headline surprise — higher than either LG4 (11.8%) or SG2 (45.0%).
-- LG3V achieves perfect image detection (100%) — the only guard to do so.
-- The protection gap metric reveals a structural pattern: gap magnitude correlates with architectural specialization (LG4 ≈ 0, LG3V −10.5pp, SG2 −56.5pp).
+**Key findings (as amended by the correction entry above):**
+- SG2's image detection is weak *and* environment-fragile on rendered text (canonical 37.5%); the fragility itself is a finding.
+- LG3V's 100% image detection is a refuse-all-images policy: it also blocks 100% of benign images (its 55.0% aggregate over-refusal is 100% on the image channel, 10% on text).
+- The rigorous channel-gap result is LG4's paired detection McNemar (−10.5pp, p<0.001); the aggregate ProtGap column orders guards by architecture but is not per-guard significant for LG4 and is a degenerate-policy artifact for LG3V and SG2.
 
-**Status of downstream work:**
-- `writeup/paper.md` — updated with corrected numbers (Sections 1, 3, 4, 7, 8, 9, 10)
-- `README.md` — updated with three-guard findings and corrected numbers
-- `scripts/make_results_figures.py` — pending re-run against `full_run/` to regenerate figures
-- `scripts/compute_ensemble.py` — pending re-run for ensemble metrics with corrected SG2
+**Status of downstream work (see correction entry for current state):**
+- `writeup/paper.md`, `README.md` — reconciled to canonical numbers and reframed.
+- `scripts/make_results_figures.py` — re-run against `full_run/`; `fig1`/`fig4` regenerated and committed.
+- `scripts/compute_ensemble.py`, `scripts/compute_stats.py` — re-run against canonical `full_run` (committed).
 
 ---
 

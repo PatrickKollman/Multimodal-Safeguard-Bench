@@ -24,8 +24,8 @@
         ],
         "detection_gap_image_minus_text": -0.105,
         "detection_gap_ci95_newcombe": [
-          -0.2327,
-          0.024
+          -0.1708,
+          -0.0399
         ],
         "mcnemar": {
           "b": 26,
@@ -88,14 +88,14 @@
         ],
         "detection_gap_image_minus_text": 0.11,
         "detection_gap_ci95_newcombe": [
-          0.0102,
-          0.1899
+          0.0692,
+          0.1609
         ],
         "mcnemar": {
           "b": 0,
           "c": 22,
           "statistic": 0.0,
-          "p_value": 0.0,
+          "p_value": 4.77e-07,
           "method": "exact_binomial"
         }
       },
@@ -152,14 +152,14 @@
         ],
         "detection_gap_image_minus_text": 0.375,
         "detection_gap_ci95_newcombe": [
-          0.24,
-          0.5059
+          0.3082,
+          0.4439
         ],
         "mcnemar": {
           "b": 0,
           "c": 75,
           "statistic": 73.0133,
-          "p_value": 0.0,
+          "p_value": 1.29e-17,
           "method": "chi2_continuity_corrected"
         }
       },

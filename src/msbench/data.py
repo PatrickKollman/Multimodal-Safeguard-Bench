@@ -200,7 +200,7 @@ def build_items(cfg: dict) -> list[Item]:
     else:
         raise ValueError(f"Unknown data source: {source!r}")
 
-        # Optional: override benign set with an external benchmark (e.g. XSTest)
+    # Optional: override benign set with an external benchmark (e.g. XSTest)
     if cfg.get("benign_source") == "xstest":
         benign_raw = _load_xstest_benign(cfg)
 

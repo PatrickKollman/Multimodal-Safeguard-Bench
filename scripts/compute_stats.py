@@ -44,13 +44,17 @@ def wilson_ci(p, n, z=1.96):
     return [round(max(0.0, center - margin), 4), round(min(1.0, center + margin), 4)]
 
 
-def newcombe_diff_ci(p1, n1, p2, n2, z=1.96):
-    """Wilson CI for the difference p2 - p1 (Newcombe 1998)."""
+def newcombe_diff_ci(p1, n1, p2, n2):
+    """Newcombe (1998) method 10 CI for the difference p2 - p1.
+
+    The z multiplier is already embedded in the Wilson limits (l, u), so it must
+    NOT be reapplied to the quadrature term — doing so widens the interval ~z-fold.
+    """
     l1, u1 = wilson_ci(p1, n1)
     l2, u2 = wilson_ci(p2, n2)
     diff = p2 - p1
-    lo = diff - z * math.sqrt((p1 - l1) ** 2 + (u2 - p2) ** 2)
-    hi = diff + z * math.sqrt((u1 - p1) ** 2 + (p2 - l2) ** 2)
+    lo = diff - math.sqrt((u1 - p1) ** 2 + (p2 - l2) ** 2)
+    hi = diff + math.sqrt((p1 - l1) ** 2 + (u2 - p2) ** 2)
     return [round(lo, 4), round(hi, 4)]
 
 
@@ -62,6 +66,15 @@ def binom_cdf(k, n):
     return sum(binom_pmf(i, n) for i in range(k + 1))
 
 
+def _round_p(p):
+    """Round a p-value without collapsing very small values to 0.0."""
+    if p <= 0:
+        return 0.0
+    if p < 1e-4:
+        return float(f"{p:.2e}")
+    return round(p, 6)
+
+
 def mcnemar(b, c):
     n = b + c
     if n == 0:
@@ -71,11 +84,11 @@ def mcnemar(b, c):
         lo = min(b, c)
         p_val = min(1.0, 2 * binom_cdf(lo, n))
         return {"b": b, "c": c, "statistic": float(lo),
-                "p_value": round(p_val, 6), "method": "exact_binomial"}
+                "p_value": _round_p(p_val), "method": "exact_binomial"}
     chi2 = (abs(b - c) - 1) ** 2 / n
     p_val = math.erfc(math.sqrt(chi2 / 2))
     return {"b": b, "c": c, "statistic": round(chi2, 4),
-            "p_value": round(p_val, 6), "method": "chi2_continuity_corrected"}
+            "p_value": _round_p(p_val), "method": "chi2_continuity_corrected"}
 
 
 def detection_stats(harmful_jsonl):
