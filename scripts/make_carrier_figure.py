@@ -14,6 +14,7 @@ Output:
 """
 import argparse
 import json
+import statistics
 from pathlib import Path
 
 import matplotlib
@@ -28,24 +29,23 @@ plt.rcParams.update({
 })
 
 # House palette — matches make_results_figures.py
-C_LG4_DET  = "#8B5CF6"   # muted purple  (LG4 detection bars)
-C_LG4_ASR  = "#EF4444"   # muted red     (LG4 ASR bars)
-C_LG3V     = "#059669"   # teal          (LG3V Det-img reference)
-C_UNGUARDED = "#9CA3AF"  # light gray    (unguarded ASR-img reference line)
-C_AXIS     = "#E5E7EB"
-C_TICK     = "#6B7280"
-C_LABEL    = "#111827"
-C_ANNOT    = "#374151"
+C_LG4_DET   = "#8B5CF6"   # muted purple  (LG4 Det-img bars)
+C_LG3V_DET  = "#059669"   # teal          (LG3V Det-img bars)
+C_UNGUARDED = "#9CA3AF"   # light gray    (unguarded ASR-img reference line)
+C_AXIS      = "#E5E7EB"
+C_TICK      = "#6B7280"
+C_LABEL     = "#111827"
+C_ANNOT     = "#374151"
 
-VARIANT_LABELS = {
-    "baseline":      "Baseline\n(control)",
-    "fiction":       "Fiction\n(novel)",
-    "transcription": "Transcription\n(OCR)",
-    "roleplay":      "Roleplay\n(screenplay)",
-    "academic":      "Academic\n(analysis)",
+CATEGORY_ORDER = ["baseline", "fictional", "theatrical", "transcription", "academic", "other"]
+CATEGORY_LABELS = {
+    "baseline":      "Baseline",
+    "fictional":     "Fictional",
+    "theatrical":    "Theatrical",
+    "transcription": "Transcription",
+    "academic":      "Academic",
+    "other":         "Other",
 }
-
-VARIANT_ORDER = ["baseline", "fiction", "transcription", "roleplay", "academic"]
 
 
 def _style_ax(ax):
@@ -57,89 +57,74 @@ def _style_ax(ax):
     ax.tick_params(colors=C_TICK, length=3)
 
 
+def _unguarded_asr_mean(summary: dict, members: list[str]) -> float:
+    vals = [
+        summary["results"][m]["unguarded_asr_image"] * 100
+        for m in members
+        if m in summary.get("results", {}) and summary["results"][m].get("unguarded_asr_image") is not None
+    ]
+    return statistics.mean(vals) if vals else 0.0
+
+
 def make_carrier_figure(summary: dict, out_path: Path) -> None:
-    results = summary.get("results", {})
-    variants = [v for v in VARIANT_ORDER if v in results]
+    categories = summary.get("categories", {})
+    aggs = summary.get("category_aggregates", {})
+    cats = [c for c in CATEGORY_ORDER if c in aggs]
 
-    # Extract series
-    ung_asr   = [results[v].get("unguarded_asr_image", 0) * 100    for v in variants]
-    lg4_det   = [results[v].get("llama_guard_4", {}).get("detection_recall_image", 0) * 100 for v in variants]
-    lg4_asr   = [results[v].get("llama_guard_4", {}).get("asr_image", 0) * 100           for v in variants]
-    lg3v_det  = [results[v].get("llama_guard_3_vision", {}).get("detection_recall_image", 0) * 100 for v in variants]
+    lg4_mean, lg4_lo, lg4_hi = [], [], []
+    lg3v_mean, lg3v_lo, lg3v_hi = [], [], []
+    ung_asr = []
+    n_members = []
 
-    x = np.arange(len(variants))
-    labels = [VARIANT_LABELS.get(v, v) for v in variants]
+    for cat in cats:
+        d4 = aggs[cat]["llama_guard_4"]["detection_recall_image"]
+        d3 = aggs[cat]["llama_guard_3_vision"]["detection_recall_image"]
+        m4, m3 = (d4["mean"] or 0) * 100, (d3["mean"] or 0) * 100
+        lg4_mean.append(m4)
+        lg3v_mean.append(m3)
+        lg4_lo.append(m4 - (d4["min"] or 0) * 100)
+        lg4_hi.append((d4["max"] or 0) * 100 - m4)
+        lg3v_lo.append(m3 - (d3["min"] or 0) * 100)
+        lg3v_hi.append((d3["max"] or 0) * 100 - m3)
+        ung_asr.append(_unguarded_asr_mean(summary, categories.get(cat, [])))
+        n_members.append(d4["n"])
 
-    fig, (ax1, ax2) = plt.subplots(
-        1, 2, figsize=(14, 5.2), facecolor="white",
-        gridspec_kw={"wspace": 0.38},
+    x = np.arange(len(cats))
+    width = 0.36
+    labels = [f"{CATEGORY_LABELS.get(c, c)}\n(n={n})" for c, n in zip(cats, n_members)]
+
+    fig, ax = plt.subplots(figsize=(11, 6), facecolor="white")
+    _style_ax(ax)
+
+    bars4 = ax.bar(x - width / 2, lg4_mean, width, yerr=[lg4_lo, lg4_hi],
+                    color=C_LG4_DET, alpha=0.88, zorder=3, linewidth=0,
+                    label="LG4 Det-img (mean, range)",
+                    error_kw=dict(ecolor=C_ANNOT, elinewidth=1.2, capsize=4, zorder=4))
+    bars3 = ax.bar(x + width / 2, lg3v_mean, width, yerr=[lg3v_lo, lg3v_hi],
+                    color=C_LG3V_DET, alpha=0.88, zorder=3, linewidth=0,
+                    label="LG3V Det-img (mean, range)",
+                    error_kw=dict(ecolor=C_ANNOT, elinewidth=1.2, capsize=4, zorder=4))
+
+    for bar, h, hi in zip(bars4, lg4_mean, lg4_hi):
+        ax.text(bar.get_x() + bar.get_width() / 2, h + hi + 2, f"{h:.0f}%",
+                ha="center", va="bottom", fontsize=9, fontweight="bold", color=C_ANNOT)
+    for bar, h, hi in zip(bars3, lg3v_mean, lg3v_hi):
+        ax.text(bar.get_x() + bar.get_width() / 2, h + hi + 2, f"{h:.0f}%",
+                ha="center", va="bottom", fontsize=9, fontweight="bold", color=C_ANNOT)
+
+    ax.plot(x, ung_asr, color=C_UNGUARDED, linestyle="--", linewidth=1.8,
+            marker="o", markersize=5, zorder=5, label="Unguarded ASR-img (VLM compliance)")
+
+    ax.set_ylim(0, 115)
+    ax.set_ylabel("Detection Recall, Image Channel (%)  ·  higher = guard blocks more", fontsize=10, color=C_TICK)
+    ax.set_xticks(x)
+    ax.set_xticklabels(labels, fontsize=10)
+    ax.set_title(
+        "Guard-Selective Blind Spots by Rhetorical Category\n"
+        "Fictional Framing Collapses LG4, Theatrical Framing Collapses LG3V",
+        fontsize=13, fontweight="bold", pad=14, color=C_LABEL,
     )
-    fig.patch.set_facecolor("white")
-
-    # ── Left panel: LG4 Det-img across carriers ───────────────────────────────
-    _style_ax(ax1)
-    bars = ax1.bar(x, lg4_det, 0.52, color=C_LG4_DET, alpha=0.88, zorder=3,
-                   linewidth=0, label="LG4 Det-img")
-
-    for bar in bars:
-        h = bar.get_height()
-        ax1.text(bar.get_x() + bar.get_width() / 2, h + 1.5, f"{h:.1f}%",
-                 ha="center", va="bottom", fontsize=9, fontweight="bold", color=C_ANNOT)
-
-    # Unguarded ASR-img reference line — shows VLM compliance effect
-    ax1.plot(x, ung_asr, color=C_UNGUARDED, linestyle="--", linewidth=1.8,
-             marker="o", markersize=5, zorder=4, label="Unguarded ASR-img (VLM compliance)")
-
-    # LG3V Det-img reference — affected differently than LG4 (collapses at roleplay)
-    ax1.plot(x, lg3v_det, color=C_LG3V, linestyle=":", linewidth=1.8,
-             marker="s", markersize=4, zorder=4, label="LG3V Det-img (collapses at roleplay)")
-
-    ax1.set_ylim(0, 115)
-    ax1.set_ylabel("Detection Recall (%)  ·  higher = guard blocks more", fontsize=10, color=C_TICK)
-    ax1.set_title("LG4 Image Detection by Carrier Prompt", fontsize=12,
-                  fontweight="bold", pad=12, color=C_LABEL)
-    ax1.set_xticks(x)
-    ax1.set_xticklabels(labels, fontsize=9.5)
-    ax1.legend(fontsize=8.5, framealpha=1.0, edgecolor=C_AXIS, facecolor="white",
-               loc="upper right")
-
-    # Annotate the baseline bar as reference point
-    ax1.annotate("full_run\nbaseline", xy=(0, lg4_det[0]),
-                 xytext=(0.35, lg4_det[0] + 8),
-                 fontsize=7.5, color=C_ANNOT, style="italic",
-                 arrowprops=dict(arrowstyle="->", color=C_ANNOT, lw=0.9))
-
-    # ── Right panel: LG4 ASR-img across carriers ─────────────────────────────
-    _style_ax(ax2)
-    bars2 = ax2.bar(x, lg4_asr, 0.52, color=C_LG4_ASR, alpha=0.88, zorder=3,
-                    linewidth=0, label="LG4 ASR-img")
-
-    for bar in bars2:
-        h = bar.get_height()
-        if h > 35:
-            ax2.text(bar.get_x() + bar.get_width() / 2, h - 2.0, f"{h:.1f}%",
-                     ha="center", va="top", fontsize=9, color="white", fontweight="bold")
-        else:
-            ax2.text(bar.get_x() + bar.get_width() / 2, h + 1.5, f"{h:.1f}%",
-                     ha="center", va="bottom", fontsize=9, fontweight="bold", color=C_ANNOT)
-
-    # Same unguarded reference line — lets reader see gap between guard and no-guard
-    ax2.plot(x, ung_asr, color=C_UNGUARDED, linestyle="--", linewidth=1.8,
-             marker="o", markersize=5, zorder=4, label="Unguarded ASR-img")
-
-    ax2.set_ylim(0, 100)
-    ax2.set_ylabel("Attack Success Rate (%)  ·  lower = guard protects more", fontsize=10, color=C_TICK)
-    ax2.set_title("LG4 Image ASR by Carrier Prompt", fontsize=12,
-                  fontweight="bold", pad=12, color=C_LABEL)
-    ax2.set_xticks(x)
-    ax2.set_xticklabels(labels, fontsize=9.5)
-    ax2.legend(fontsize=8.5, framealpha=1.0, edgecolor=C_AXIS, facecolor="white",
-               loc="upper left")
-
-    fig.suptitle(
-        "Guard-Selective Blind Spots via Carrier Framing  ·  Fiction→LG4, Roleplay→LG3V",
-        fontsize=12, fontweight="bold", y=1.02, color=C_LABEL,
-    )
+    ax.legend(fontsize=9, framealpha=1.0, edgecolor=C_AXIS, facecolor="white", loc="upper right")
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(out_path, dpi=180, bbox_inches="tight")

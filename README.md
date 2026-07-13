@@ -10,7 +10,7 @@ comparing real attack success rates across modalities.
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 ![Status: results available](https://img.shields.io/badge/status-results%20available-green.svg)
 
-Full writeup: [`writeup/paper.md`](writeup/paper.md)
+Full writeup: [`writeup/paper.md`](writeup/paper.md) · Development log: [`CHANGELOG.md`](CHANGELOG.md)
 
 ---
 

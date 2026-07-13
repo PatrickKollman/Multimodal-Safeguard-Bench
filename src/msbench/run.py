@@ -42,7 +42,7 @@ from .eval import (
 from .guards import build_guard
 from .judge import WildGuardJudge
 from .pipeline import classify_items, generate_responses, judge_generations
-from .target import LLaVATarget
+from .target import build_target
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger(__name__)
@@ -213,8 +213,8 @@ def _phase_guard(cfg, args, run_dir: Path, harmful, benign, active_guard_names):
 
 
 def _phase_generate(cfg, run_dir: Path, harmful):
-    target = LLaVATarget(cfg["target"])
-    log.info("Loading target VLM (LLaVA)...")
+    target = build_target(cfg["target"])
+    log.info(f"Loading target VLM ({cfg['target'].get('model_id', 'unknown')})...")
     target.load()
     gens_unguarded = generate_responses(harmful, target, guard_results=None, run_id="unguarded")
     _save_jsonl(gens_unguarded, run_dir / "gen_unguarded.jsonl")
@@ -340,8 +340,8 @@ def main(args: argparse.Namespace) -> None:
             cfg, args, run_dir, harmful, benign, active_guard_names
         )
 
-        target = LLaVATarget(cfg["target"])
-        log.info("Loading target VLM (LLaVA)...")
+        target = build_target(cfg["target"])
+        log.info(f"Loading target VLM ({cfg['target'].get('model_id', 'unknown')})...")
         target.load()
         gens_unguarded = generate_responses(harmful, target, guard_results=None, run_id="unguarded")
         _save_jsonl(gens_unguarded, run_dir / "gen_unguarded.jsonl")

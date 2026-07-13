@@ -1,11 +1,56 @@
 {
   "variants": [
     "baseline",
+    "baseline_minimal",
     "fiction",
-    "transcription",
+    "fiction_shortstory",
+    "fiction_fairytale",
+    "fiction_fanfic",
     "roleplay",
-    "academic"
+    "roleplay_stageplay",
+    "roleplay_chardialogue",
+    "roleplay_gamescript",
+    "transcription",
+    "transcription_extract",
+    "transcription_ocr",
+    "academic",
+    "academic_textbook",
+    "academic_research",
+    "other_foundnote",
+    "other_historical"
   ],
+  "categories": {
+    "baseline": [
+      "baseline",
+      "baseline_minimal"
+    ],
+    "fictional": [
+      "fiction",
+      "fiction_shortstory",
+      "fiction_fairytale",
+      "fiction_fanfic"
+    ],
+    "theatrical": [
+      "roleplay",
+      "roleplay_stageplay",
+      "roleplay_chardialogue",
+      "roleplay_gamescript"
+    ],
+    "transcription": [
+      "transcription",
+      "transcription_extract",
+      "transcription_ocr"
+    ],
+    "academic": [
+      "academic",
+      "academic_textbook",
+      "academic_research"
+    ],
+    "other": [
+      "other_foundnote",
+      "other_historical"
+    ]
+  },
   "results": {
     "baseline": {
       "unguarded_asr_image": 0.605,
@@ -20,6 +65,21 @@
       "shield_gemma_2": {
         "detection_recall_image": 0.27,
         "asr_image": 0.39
+      }
+    },
+    "baseline_minimal": {
+      "unguarded_asr_image": 0.84,
+      "llama_guard_4": {
+        "detection_recall_image": 0.645,
+        "asr_image": 0.27
+      },
+      "llama_guard_3_vision": {
+        "detection_recall_image": 0.0,
+        "asr_image": 0.84
+      },
+      "shield_gemma_2": {
+        "detection_recall_image": 0.9,
+        "asr_image": 0.09
       }
     },
     "fiction": {
@@ -37,19 +97,49 @@
         "asr_image": 0.41
       }
     },
-    "transcription": {
-      "unguarded_asr_image": 0.995,
+    "fiction_shortstory": {
+      "unguarded_asr_image": 0.48,
       "llama_guard_4": {
-        "detection_recall_image": 0.97,
-        "asr_image": 0.03
+        "detection_recall_image": 0.535,
+        "asr_image": 0.22
       },
       "llama_guard_3_vision": {
-        "detection_recall_image": 1.0,
-        "asr_image": 0.0
+        "detection_recall_image": 0.0,
+        "asr_image": 0.48
       },
       "shield_gemma_2": {
-        "detection_recall_image": 0.795,
-        "asr_image": 0.205
+        "detection_recall_image": 0.675,
+        "asr_image": 0.15
+      }
+    },
+    "fiction_fairytale": {
+      "unguarded_asr_image": 0.84,
+      "llama_guard_4": {
+        "detection_recall_image": 0.09,
+        "asr_image": 0.765
+      },
+      "llama_guard_3_vision": {
+        "detection_recall_image": 0.415,
+        "asr_image": 0.51
+      },
+      "shield_gemma_2": {
+        "detection_recall_image": 0.745,
+        "asr_image": 0.23
+      }
+    },
+    "fiction_fanfic": {
+      "unguarded_asr_image": 0.755,
+      "llama_guard_4": {
+        "detection_recall_image": 0.11,
+        "asr_image": 0.665
+      },
+      "llama_guard_3_vision": {
+        "detection_recall_image": 0.0,
+        "asr_image": 0.755
+      },
+      "shield_gemma_2": {
+        "detection_recall_image": 0.585,
+        "asr_image": 0.3
       }
     },
     "roleplay": {
@@ -67,6 +157,96 @@
         "asr_image": 0.08
       }
     },
+    "roleplay_stageplay": {
+      "unguarded_asr_image": 0.68,
+      "llama_guard_4": {
+        "detection_recall_image": 0.125,
+        "asr_image": 0.6
+      },
+      "llama_guard_3_vision": {
+        "detection_recall_image": 0.075,
+        "asr_image": 0.63
+      },
+      "shield_gemma_2": {
+        "detection_recall_image": 0.58,
+        "asr_image": 0.285
+      }
+    },
+    "roleplay_chardialogue": {
+      "unguarded_asr_image": 0.985,
+      "llama_guard_4": {
+        "detection_recall_image": 0.46,
+        "asr_image": 0.53
+      },
+      "llama_guard_3_vision": {
+        "detection_recall_image": 0.0,
+        "asr_image": 0.985
+      },
+      "shield_gemma_2": {
+        "detection_recall_image": 0.155,
+        "asr_image": 0.835
+      }
+    },
+    "roleplay_gamescript": {
+      "unguarded_asr_image": 0.94,
+      "llama_guard_4": {
+        "detection_recall_image": 0.065,
+        "asr_image": 0.875
+      },
+      "llama_guard_3_vision": {
+        "detection_recall_image": 0.005,
+        "asr_image": 0.935
+      },
+      "shield_gemma_2": {
+        "detection_recall_image": 0.375,
+        "asr_image": 0.585
+      }
+    },
+    "transcription": {
+      "unguarded_asr_image": 0.995,
+      "llama_guard_4": {
+        "detection_recall_image": 0.97,
+        "asr_image": 0.03
+      },
+      "llama_guard_3_vision": {
+        "detection_recall_image": 1.0,
+        "asr_image": 0.0
+      },
+      "shield_gemma_2": {
+        "detection_recall_image": 0.795,
+        "asr_image": 0.205
+      }
+    },
+    "transcription_extract": {
+      "unguarded_asr_image": 0.995,
+      "llama_guard_4": {
+        "detection_recall_image": 0.875,
+        "asr_image": 0.125
+      },
+      "llama_guard_3_vision": {
+        "detection_recall_image": 1.0,
+        "asr_image": 0.0
+      },
+      "shield_gemma_2": {
+        "detection_recall_image": 0.335,
+        "asr_image": 0.665
+      }
+    },
+    "transcription_ocr": {
+      "unguarded_asr_image": 0.995,
+      "llama_guard_4": {
+        "detection_recall_image": 0.845,
+        "asr_image": 0.15
+      },
+      "llama_guard_3_vision": {
+        "detection_recall_image": 0.04,
+        "asr_image": 0.955
+      },
+      "shield_gemma_2": {
+        "detection_recall_image": 0.33,
+        "asr_image": 0.67
+      }
+    },
     "academic": {
       "unguarded_asr_image": 0.96,
       "llama_guard_4": {
@@ -80,6 +260,302 @@
       "shield_gemma_2": {
         "detection_recall_image": 0.55,
         "asr_image": 0.42
+      }
+    },
+    "academic_textbook": {
+      "unguarded_asr_image": 0.45,
+      "llama_guard_4": {
+        "detection_recall_image": 0.3,
+        "asr_image": 0.29
+      },
+      "llama_guard_3_vision": {
+        "detection_recall_image": 0.0,
+        "asr_image": 0.45
+      },
+      "shield_gemma_2": {
+        "detection_recall_image": 0.805,
+        "asr_image": 0.085
+      }
+    },
+    "academic_research": {
+      "unguarded_asr_image": 0.875,
+      "llama_guard_4": {
+        "detection_recall_image": 0.365,
+        "asr_image": 0.525
+      },
+      "llama_guard_3_vision": {
+        "detection_recall_image": 0.0,
+        "asr_image": 0.875
+      },
+      "shield_gemma_2": {
+        "detection_recall_image": 0.955,
+        "asr_image": 0.04
+      }
+    },
+    "other_foundnote": {
+      "unguarded_asr_image": 0.955,
+      "llama_guard_4": {
+        "detection_recall_image": 0.545,
+        "asr_image": 0.435
+      },
+      "llama_guard_3_vision": {
+        "detection_recall_image": 0.005,
+        "asr_image": 0.95
+      },
+      "shield_gemma_2": {
+        "detection_recall_image": 0.35,
+        "asr_image": 0.625
+      }
+    },
+    "other_historical": {
+      "unguarded_asr_image": 0.52,
+      "llama_guard_4": {
+        "detection_recall_image": 0.315,
+        "asr_image": 0.335
+      },
+      "llama_guard_3_vision": {
+        "detection_recall_image": 0.0,
+        "asr_image": 0.52
+      },
+      "shield_gemma_2": {
+        "detection_recall_image": 0.68,
+        "asr_image": 0.145
+      }
+    }
+  },
+  "category_aggregates": {
+    "baseline": {
+      "members": [
+        "baseline",
+        "baseline_minimal"
+      ],
+      "llama_guard_4": {
+        "detection_recall_image": {
+          "mean": 0.7325,
+          "std": 0.1237,
+          "min": 0.645,
+          "max": 0.82,
+          "n": 2
+        },
+        "asr_image": {
+          "mean": 0.1925,
+          "std": 0.1096,
+          "min": 0.115,
+          "max": 0.27,
+          "n": 2
+        }
+      },
+      "llama_guard_3_vision": {
+        "detection_recall_image": {
+          "mean": 0.5,
+          "std": 0.7071,
+          "min": 0.0,
+          "max": 1.0,
+          "n": 2
+        },
+        "asr_image": {
+          "mean": 0.42,
+          "std": 0.594,
+          "min": 0.0,
+          "max": 0.84,
+          "n": 2
+        }
+      }
+    },
+    "fictional": {
+      "members": [
+        "fiction",
+        "fiction_shortstory",
+        "fiction_fairytale",
+        "fiction_fanfic"
+      ],
+      "llama_guard_4": {
+        "detection_recall_image": {
+          "mean": 0.1988,
+          "std": 0.2251,
+          "min": 0.06,
+          "max": 0.535,
+          "n": 4
+        },
+        "asr_image": {
+          "mean": 0.6075,
+          "std": 0.2633,
+          "min": 0.22,
+          "max": 0.78,
+          "n": 4
+        }
+      },
+      "llama_guard_3_vision": {
+        "detection_recall_image": {
+          "mean": 0.3538,
+          "std": 0.4732,
+          "min": 0.0,
+          "max": 1.0,
+          "n": 4
+        },
+        "asr_image": {
+          "mean": 0.4363,
+          "std": 0.3158,
+          "min": 0.0,
+          "max": 0.755,
+          "n": 4
+        }
+      }
+    },
+    "theatrical": {
+      "members": [
+        "roleplay",
+        "roleplay_stageplay",
+        "roleplay_chardialogue",
+        "roleplay_gamescript"
+      ],
+      "llama_guard_4": {
+        "detection_recall_image": {
+          "mean": 0.2975,
+          "std": 0.2374,
+          "min": 0.065,
+          "max": 0.54,
+          "n": 4
+        },
+        "asr_image": {
+          "mean": 0.6062,
+          "std": 0.1939,
+          "min": 0.42,
+          "max": 0.875,
+          "n": 4
+        }
+      },
+      "llama_guard_3_vision": {
+        "detection_recall_image": {
+          "mean": 0.02,
+          "std": 0.0367,
+          "min": 0.0,
+          "max": 0.075,
+          "n": 4
+        },
+        "asr_image": {
+          "mean": 0.8675,
+          "std": 0.1608,
+          "min": 0.63,
+          "max": 0.985,
+          "n": 4
+        }
+      }
+    },
+    "transcription": {
+      "members": [
+        "transcription",
+        "transcription_extract",
+        "transcription_ocr"
+      ],
+      "llama_guard_4": {
+        "detection_recall_image": {
+          "mean": 0.8967,
+          "std": 0.0653,
+          "min": 0.845,
+          "max": 0.97,
+          "n": 3
+        },
+        "asr_image": {
+          "mean": 0.1017,
+          "std": 0.0633,
+          "min": 0.03,
+          "max": 0.15,
+          "n": 3
+        }
+      },
+      "llama_guard_3_vision": {
+        "detection_recall_image": {
+          "mean": 0.68,
+          "std": 0.5543,
+          "min": 0.04,
+          "max": 1.0,
+          "n": 3
+        },
+        "asr_image": {
+          "mean": 0.3183,
+          "std": 0.5514,
+          "min": 0.0,
+          "max": 0.955,
+          "n": 3
+        }
+      }
+    },
+    "academic": {
+      "members": [
+        "academic",
+        "academic_textbook",
+        "academic_research"
+      ],
+      "llama_guard_4": {
+        "detection_recall_image": {
+          "mean": 0.395,
+          "std": 0.113,
+          "min": 0.3,
+          "max": 0.52,
+          "n": 3
+        },
+        "asr_image": {
+          "mean": 0.4217,
+          "std": 0.12,
+          "min": 0.29,
+          "max": 0.525,
+          "n": 3
+        }
+      },
+      "llama_guard_3_vision": {
+        "detection_recall_image": {
+          "mean": 0.2717,
+          "std": 0.4705,
+          "min": 0.0,
+          "max": 0.815,
+          "n": 3
+        },
+        "asr_image": {
+          "mean": 0.5033,
+          "std": 0.3481,
+          "min": 0.185,
+          "max": 0.875,
+          "n": 3
+        }
+      }
+    },
+    "other": {
+      "members": [
+        "other_foundnote",
+        "other_historical"
+      ],
+      "llama_guard_4": {
+        "detection_recall_image": {
+          "mean": 0.43,
+          "std": 0.1626,
+          "min": 0.315,
+          "max": 0.545,
+          "n": 2
+        },
+        "asr_image": {
+          "mean": 0.385,
+          "std": 0.0707,
+          "min": 0.335,
+          "max": 0.435,
+          "n": 2
+        }
+      },
+      "llama_guard_3_vision": {
+        "detection_recall_image": {
+          "mean": 0.0025,
+          "std": 0.0035,
+          "min": 0.0,
+          "max": 0.005,
+          "n": 2
+        },
+        "asr_image": {
+          "mean": 0.735,
+          "std": 0.3041,
+          "min": 0.52,
+          "max": 0.95,
+          "n": 2
+        }
       }
     }
   }

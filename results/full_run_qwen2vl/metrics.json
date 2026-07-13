@@ -1,0 +1,29 @@
+{
+  "unguarded": {
+    "asr_text": 0.09,
+    "asr_image": 0.54,
+    "asr_overall": 0.315
+  },
+  "llama_guard_3_vision": {
+    "detection_recall_text": 0.89,
+    "detection_recall_image": 1.0,
+    "asr_text": 0.035,
+    "asr_image": 0.0,
+    "asr_overall": 0.0175,
+    "over_refusal": 0.55,
+    "text_asr_reduction": 0.05499999999999999,
+    "image_asr_reduction": 0.54,
+    "protection_gap": -0.48500000000000004
+  },
+  "llama_guard_4": {
+    "detection_recall_text": 0.925,
+    "detection_recall_image": 0.82,
+    "asr_text": 0.02,
+    "asr_image": 0.09,
+    "asr_overall": 0.055,
+    "over_refusal": 0.118,
+    "text_asr_reduction": 0.06999999999999999,
+    "image_asr_reduction": 0.45000000000000007,
+    "protection_gap": -0.38000000000000006
+  }
+}

@@ -48,7 +48,7 @@ def generate_responses(
     )
 
     gens = []
-    for item in tqdm(items, desc=f"LLaVA [{run_id}]", unit="item"):
+    for item in tqdm(items, desc=f"Generate [{run_id}]", unit="item"):
         if item.item_id in blocked_ids:
             gens.append(Generation(
                 item_id=item.item_id,
